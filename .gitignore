@@ -1,0 +1,3 @@
+apps/linux/*
+apps/linux/!*/
+apps/linux/!*.*
