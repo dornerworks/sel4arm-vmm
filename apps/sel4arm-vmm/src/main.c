@@ -35,11 +35,66 @@
 
 #include "vmlinux.h"
 
-#define VM_PRIO             100
-#define VM_BADGE            (1U << 0)
-#define VM_LINUX_NAME       "linux"
-#define VM_LINUX_DTB_NAME   "linux-dtb"
-#define VM_NAME             "Linux"
+#include <sel4arm-vmm/plat/devices.h>
+#include <sel4arm-vmm/devices/vgic.h>
+#include <sel4arm-vmm/devices/vram.h>
+#include <sel4arm-vmm/devices/vusb.h>
+
+#define VM_PRIO      100
+#define VM_NAME_LEN  32
+
+#define NUM_VMS 2
+
+typedef struct vm_conf {
+  int priority;
+  seL4_Word badge;
+  char linux_name[VM_NAME_LEN];
+  char dtb_name[VM_NAME_LEN];
+  char vm_name[VM_NAME_LEN];
+  uintptr_t linux_base;
+  const struct device *linux_pt_devices[MAX_DEVICES_PER_VM];
+  int num_devices;
+  int linux_pt_irqs[MAX_PASSTHROUGH_IRQS];
+  int num_irqs;
+} vmconf_t;
+
+vmconf_t vm_confs[NUM_VMS] =
+{
+  {
+    .priority = VM_PRIO,
+    .badge = 1U,
+    .linux_name = "linux",
+    .dtb_name = "linux-1-dtb",
+    .vm_name = "Linux 1",
+    .linux_base = 0x800000000,
+    .linux_pt_devices = {
+      &dev_uart1,
+    },
+    .num_devices = 1,
+    .linux_pt_irqs = {
+        INTERRUPT_CORE_VIRT_TIMER,
+        INTERRUPT_UART1,
+    },
+    .num_irqs = 2
+  },
+  {
+    .priority = VM_PRIO,
+    .badge = 2U,
+    .linux_name = "linux",
+    .dtb_name = "linux-2-dtb",
+    .vm_name = "Linux 2",
+    .linux_base = 0x810000000,
+    .linux_pt_devices = {
+      &dev_uart0,
+    },
+    .num_devices = 1,
+    .linux_pt_irqs = {
+        INTERRUPT_CORE_VIRT_TIMER,
+        INTERRUPT_UART0,
+    },
+    .num_irqs = 2
+  }
+};
 
 #define IRQSERVER_PRIO      (VM_PRIO + 1)
 #define IRQ_MESSAGE_LABEL   0xCAFE
@@ -47,7 +102,8 @@
 #define DMA_VSTART  0x40000000
 
 /* allocator static pool */
-#define ALLOCATOR_STATIC_POOL_SIZE ((1 << seL4_PageBits) * 4196)
+/* Each VM takes 256MB in individual 4kB pages, so the mem pool needs to increase */
+#define ALLOCATOR_STATIC_POOL_SIZE ((1 << seL4_PageBits) * 6294 * NUM_VMS)
 static char allocator_mem_pool[ALLOCATOR_STATIC_POOL_SIZE];
 
 #define seL4_GetBootInfo() platsupport_get_bootinfo()
@@ -249,11 +305,24 @@ vmm_init(void)
     return 0;
 }
 
+int get_vm_id_by_badge(seL4_Word sender_badge)
+{
+  for(int i = 0; i < NUM_VMS; i++)
+  {
+    if(vm_confs[i].badge == sender_badge)
+    {
+      return i;
+    }
+  }
+
+  return -1;
+}
 
 int main(void)
 {
-    vm_t vm;
+    vm_t vm[NUM_VMS];
     int err;
+    int i;
 
     err = vmm_init();
     assert(!err);
@@ -262,60 +331,72 @@ int main(void)
 
     print_cpio_info();
 
-    /* Create the VM */
-    err = vm_create(VM_NAME, VM_PRIO, _fault_endpoint, VM_BADGE,
-                    &_vka, &_simple, &_vspace, &_io_ops, &vm);
-    if (err) {
-        printf("Failed to create VM\n");
-        seL4_DebugHalt();
-        return -1;
-    }
+    for(i = 0; i<NUM_VMS; i++)
+    {
+      /* Create the VM */
+      err = vm_create(vm_confs[i].vm_name, vm_confs[i].priority, _fault_endpoint, vm_confs[i].badge,
+                      &_vka, &_simple, &_vspace, &_io_ops, &vm[i]);
+      if (err) {
+          printf("Failed to create VM\n");
+          seL4_DebugHalt();
+          return -1;
+      }
 
+      // TBD
 #ifdef CONFIG_ARM_SMMU
-    int iospace_caps;
-    err = simple_get_iospace_cap_count(&_simple, &iospace_caps);
-    if (err) {
-        ZF_LOGF("Failed to get iospace count");
-    }
-    for (int i = 0; i < iospace_caps; i++) {
-        seL4_CPtr iospace = simple_get_nth_iospace_cap(&_simple, i);
-        err = vmm_guest_vspace_add_iospace(&_vspace, &vm.vm_vspace, iospace);
-        if (err) {
-            ZF_LOGF("Fail to add iospace");
-        }
-    }
+      int iospace_caps;
+      err = simple_get_iospace_cap_count(&_simple, &iospace_caps);
+      if (err) {
+          ZF_LOGF("Failed to get iospace count");
+      }
+      for (int j = 0; j < iospace_caps; j++) {
+          seL4_CPtr iospace = simple_get_nth_iospace_cap(&_simple, j);
+          err = vmm_guest_vspace_add_iospace(&_vspace, &vm[i].vm_vspace, iospace);
+          if (err) {
+              ZF_LOGF("Fail to add iospace");
+          }
+      }
 #endif
 
-    vm.dtb_name = "linux-dtb";
-    vm.ondemand_dev_install = 0;
+      vm[i].dtb_name = vm_confs[i].dtb_name;
+      vm[i].ondemand_dev_install = 0;
+      vm[i].linux_base = vm_confs[i].linux_base;
 
+      // TBD
 #ifdef CONFIG_ARM_SMMU
-    /* enable the direct device access for this VM */
-    vmm_guest_iospace_map_set(&vm.vm_vspace);
+      /* enable the direct device access for this VM */
+      vmm_guest_iospace_map_set(&vm[i].vm_vspace);
 #endif
 
-    /* Load system images */
-    printf("Loading Linux: \'%s\' dtb: \'%s\'\n", VM_LINUX_NAME, vm.dtb_name != NULL? vm.dtb_name : VM_LINUX_DTB_NAME);
+      /* Load system images */
+      printf("Loading Linux: \'%s\' dtb: \'%s\'\n", vm_confs[i].linux_name, vm[i].dtb_name);
 
-    err = load_linux(&vm, VM_LINUX_NAME, VM_LINUX_DTB_NAME);
-    if (err) {
-        printf("Failed to load VM image\n");
-        seL4_DebugHalt();
-        return -1;
-    }
+      err = load_linux(&vm[i], vm_confs[i].linux_name, vm[i].dtb_name, vm_confs[i].linux_pt_devices,
+                       vm_confs[i].num_devices, vm_confs[i].linux_pt_irqs, vm_confs[i].num_irqs);
 
-    /* Power on */
-    err = vm_start(&vm);
-    if (err) {
-        printf("Failed to start VM\n");
-        seL4_DebugHalt();
-        return -1;
+      if (err) {
+          printf("Failed to load VM image\n");
+          seL4_DebugHalt();
+          return -1;
+      }
+
+      printf("Loaded Linux\n");
+
+      /* Power on */
+      err = vm_start(&vm[i]);
+      if (err) {
+          printf("Failed to start VM %d\n", i);
+          seL4_DebugHalt();
+          return -1;
+      }
+
     }
 
     /* Loop forever, handling events */
     while (1) {
         seL4_MessageInfo_t tag;
         seL4_Word sender_badge;
+        int vm_id;
 
         tag = seL4_Recv(_fault_endpoint, &sender_badge);
 
@@ -328,16 +409,13 @@ int main(void)
                 printf("Unknown label (%d) for IPC badge %d\n", (int)label, (int)sender_badge);
             }
         } else {
-            assert(sender_badge == VM_BADGE || sender_badge== VM_BADGE + 1);
-            if (sender_badge == VM_BADGE) {
-                err = vm_event(&vm, tag);
-                if (err) {
-                /* Shutdown */
-                    vm_stop(&vm);
-                    printf("vm 0 halts\n");
-                    seL4_DebugHalt();
-                    while (1);
-                }
+            vm_id = get_vm_id_by_badge(sender_badge);
+            assert(vm_id >= 0);
+            err = vm_event(&vm[vm_id], tag);
+            if (err) {
+            /* Shutdown */
+                vm_stop(&vm[vm_id]);
+                printf("vm (%s) halts\n", vm[vm_id].name);
             }
         }
     }

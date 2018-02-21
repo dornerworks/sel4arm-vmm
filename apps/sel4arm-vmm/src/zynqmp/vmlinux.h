@@ -176,6 +176,7 @@
 
 #define LINUX_RAM_OFFSET  0
 
-int load_linux(vm_t* vm, const char* kernel_name, const char* dtb_name);
+int load_linux(vm_t* vm, const char* kernel_name, const char* dtb_name, const struct device **linux_pt_devices,
+               int num_devices, int *linux_pt_irqs, int num_irqs);
 
 #endif /* VMLINUX_H */

@@ -16,18 +16,18 @@ ifeq ($(CONFIG_PLAT_ZYNQMP),y)
 export ARCH=arm64
 
 LINUX_BINARY := $(ROOT_DIR)/Image
-DEVICE_TREE_SRC := $(ROOT_DIR)/system-top.dts
-DEVICE_TREE_SRC := $(ROOT_DIR)/linux_zynqmp.dts
+DEVICE_TREES := $(wildcard $(ROOT_DIR)/*.dts)
+LINUX_DTBS := $(patsubst %.dts,$(SEL4_BINDIR)/%-dtb,$(patsubst $(ROOT_DIR)/%,%,$(DEVICE_TREES)))
 
 else
 $(error Unknown platform)
 endif
 
-linux: $(SEL4_BINDIR)/linux-dtb $(SEL4_BINDIR)/linux
+linux: $(LINUX_DTBS) $(SEL4_BINDIR)/linux
 
-$(SEL4_BINDIR)/linux-dtb: $(DEVICE_TREE_SRC)
+$(LINUX_DTBS): $(DEVICE_TREES)
 	$(Q)mkdir -p $(dir $@)
-	$(Q)which dtc && dtc -I dts -O dtb $(DEVICE_TREE_SRC) > $@ || \
+	$(Q)which dtc && dtc -I dts -O dtb $(patsubst $(SEL4_BINDIR)/%-dtb,$(ROOT_DIR)/%.dts,$@) > $@ || \
 	(echo "ERROR: dtc potentially not installed" && false)
 
 $(SEL4_BINDIR)/linux: $(LINUX_BINARY)

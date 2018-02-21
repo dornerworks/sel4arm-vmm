@@ -28,8 +28,7 @@
 #include <sel4utils/irq_server.h>
 #include <cpio/cpio.h>
 
-#define ATAGS_ADDR        (LINUX_RAM_BASE + 0x100)
-#define DTB_ADDR          (LINUX_RAM_BASE + 0x0C000000)
+#define DTB_OFFSET           (0x0C000000)
 #define MACH_TYPE_SPECIAL    ~0
 #define MACH_TYPE            MACH_TYPE_SPECIAL
 
@@ -40,16 +39,6 @@ extern vka_t _vka;
 extern vspace_t _vspace;
 extern irq_server_t _irq_server;
 extern seL4_CPtr _fault_endpoint;
-
-
-static const struct device *linux_pt_devices[] = {
-    &dev_vconsole,
-};
-
-static int linux_pt_irqs[] = {
-    INTERRUPT_CORE_VIRT_TIMER,
-    INTERRUPT_VCONSOLE,
-};
 
 static struct irq_data* linux_irq_data[MAX_IRQ + 1] = { 0 };
 
@@ -63,11 +52,12 @@ vm_install_map_ram(vm_t *vm)
 {
     struct device d;
     d = dev_vram;
+    d.pstart = vm->linux_base;
     return vm_install_ram_only_device(vm, &d);
 }
 
 static int
-install_linux_devices(vm_t* vm)
+install_linux_devices(vm_t* vm, const struct device **linux_pt_devices, int num_devices)
 {
     int err;
     int i;
@@ -81,7 +71,8 @@ install_linux_devices(vm_t* vm)
     assert(!err);
 
     /* Install pass through devices */
-    for (i = 0; i < sizeof(linux_pt_devices) / sizeof(*linux_pt_devices); i++) {
+    for (i = 0; i < num_devices; i++) {
+        assert(NULL != linux_pt_devices[i]);
         err = vm_install_passthrough_device(vm, linux_pt_devices[i]);
         assert(!err);
     }
@@ -110,7 +101,7 @@ irq_handler(struct irq_data* irq_data)
 }
 
 static int
-route_irqs(vm_t* vm, irq_server_t irq_server)
+route_irqs(vm_t* vm, irq_server_t irq_server, int *linux_pt_irqs, int num_irqs)
 {
     int i;
     int *irq_array = NULL;
@@ -123,7 +114,7 @@ route_irqs(vm_t* vm, irq_server_t irq_server)
     } else {
         /* or the global configuration */
         irq_array = linux_pt_irqs;
-        nirqs = ARRAY_SIZE(linux_pt_irqs);
+        nirqs = num_irqs;
     }
 
     for (i = 0; i < nirqs; i++) {
@@ -168,7 +159,7 @@ install_linux_dtb(vm_t* vm, const char* dtb_name)
     }
 
     /* Copy the tree to the VM */
-    dtb_addr = DTB_ADDR;
+    dtb_addr = vm->linux_base + DTB_OFFSET;
     if (vm_copyout(vm, file, dtb_addr, size)) {
         printf("Error: Failed to load device tree \'%s\'\n", dtb_name);
         return 0;
@@ -195,10 +186,10 @@ install_linux_kernel(vm_t* vm, const char* kernel_name)
     /* Determine the load address */
     switch (image_get_type(file)) {
     case IMG_BIN:
-        entry = LINUX_RAM_BASE + 0x80000;
+        entry = vm->linux_base + 0x80000;
         break;
     case IMG_ZIMAGE:
-        entry = zImage_get_load_address(file, LINUX_RAM_BASE);
+        entry = zImage_get_load_address(file, vm->linux_base);
         break;
     default:
         printf("Error: Unknown Linux image format for \'%s\'\n", kernel_name);
@@ -215,7 +206,8 @@ install_linux_kernel(vm_t* vm, const char* kernel_name)
 }
 
 int
-load_linux(vm_t* vm, const char* kernel_name, const char* dtb_name)
+load_linux(vm_t* vm, const char* kernel_name, const char* dtb_name, const struct device **linux_pt_devices,
+           int num_devices, int *linux_pt_irqs, int num_irqs)
 {
     void* entry;
     uint64_t dtb;
@@ -226,13 +218,13 @@ load_linux(vm_t* vm, const char* kernel_name, const char* dtb_name)
     pwr_token.device_tree = dtb_name;
 
     /* Install devices */
-    err = install_linux_devices(vm);
+    err = install_linux_devices(vm, linux_pt_devices, num_devices);
     if (err) {
         printf("Error: Failed to install Linux devices\n");
         return -1;
     }
     /* Route IRQs */
-    err = route_irqs(vm, _irq_server);
+    err = route_irqs(vm, _irq_server, linux_pt_irqs, num_irqs);
     if (err) {
         return -1;
     }
