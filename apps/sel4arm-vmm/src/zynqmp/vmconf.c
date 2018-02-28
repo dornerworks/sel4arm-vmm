@@ -20,12 +20,14 @@ vmconf_t vm_confs[NUM_VMS] =
     .vm_name = "Linux 1",
     .linux_base = 0x800000000,
     .linux_pt_devices = {
+        &dev_gem3,
     },
-    .num_devices = 0,
+    .num_devices = 1,
     .linux_pt_irqs = {
         INTERRUPT_CORE_VIRT_TIMER,
+        INTERRUPT_GEM3,
     },
-    .num_irqs = 1
+    .num_irqs = 2
   },
   {
     .priority = VM_PRIO,
