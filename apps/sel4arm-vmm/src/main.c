@@ -68,14 +68,12 @@ vmconf_t vm_confs[NUM_VMS] =
     .vm_name = "Linux 1",
     .linux_base = 0x800000000,
     .linux_pt_devices = {
-      &dev_uart1,
     },
-    .num_devices = 1,
+    .num_devices = 0,
     .linux_pt_irqs = {
         INTERRUPT_CORE_VIRT_TIMER,
-        INTERRUPT_UART1,
     },
-    .num_irqs = 2
+    .num_irqs = 1
   },
   {
     .priority = VM_PRIO,
@@ -85,14 +83,12 @@ vmconf_t vm_confs[NUM_VMS] =
     .vm_name = "Linux 2",
     .linux_base = 0x810000000,
     .linux_pt_devices = {
-      &dev_uart0,
     },
-    .num_devices = 1,
+    .num_devices = 0,
     .linux_pt_irqs = {
         INTERRUPT_CORE_VIRT_TIMER,
-        INTERRUPT_UART0,
     },
-    .num_irqs = 2
+    .num_irqs = 1
   }
 };
 
@@ -331,6 +327,9 @@ int main(void)
 
     print_cpio_info();
 
+    err = virtual_devices_init(&_io_ops);
+    assert(!err);
+
     for(i = 0; i<NUM_VMS; i++)
     {
       /* Create the VM */
@@ -413,7 +412,8 @@ int main(void)
             assert(vm_id >= 0);
             err = vm_event(&vm[vm_id], tag);
             if (err) {
-            /* Shutdown */
+                /* Shutdown */
+                vm_uninstall_vconsole(&vm[vm_id]);
                 vm_stop(&vm[vm_id]);
                 printf("vm (%s) halts\n", vm[vm_id].name);
             }

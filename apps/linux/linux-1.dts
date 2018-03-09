@@ -81,7 +81,7 @@
 			compatible = "cdns,uart-r1p12", "xlnx,xuartps";
 			status = "okay";
 			interrupt-parent = <0x4>;
-			interrupts = <0x0 0x16 0x4>;
+			interrupts = <0x0 0x9e 0x4>;
 			reg = <0x0 0xff010000 0x0 0x1000>;
 			clock-names = "uart_clk", "pclk";
 			power-domains = <0x36>;

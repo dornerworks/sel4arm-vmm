@@ -32,6 +32,7 @@
 #define MACH_TYPE_SPECIAL    ~0
 #define MACH_TYPE            MACH_TYPE_SPECIAL
 
+#define VUART_ENABLED
 
 extern char _cpio_archive[];
 
@@ -46,6 +47,59 @@ struct pwr_token {
     const char* linux_bin;
     const char* device_tree;
 } pwr_token;
+
+#ifdef VUART_ENABLED
+static struct ps_chardevice _char_dev;
+
+static void
+uart_irq_handler(struct irq_data* irq_data)
+{
+    struct ps_chardevice* char_dev = (struct ps_chardevice*)irq_data->token;
+
+    ps_cdev_handle_irq(char_dev, irq_data->irq);
+    vuart_handle_irq();
+    irq_data_ack_irq(irq_data);
+}
+#endif
+
+static int
+install_vuart(vm_t* vm)
+{
+    int err = 0;
+#ifdef VUART_ENABLED
+    /* Install the virtual device */
+    err = vm_install_vconsole(vm, VUART_IRQ);
+    assert(!err);
+#endif
+    return err;
+}
+
+int virtual_devices_init(struct ps_io_ops* io_ops)
+{
+#ifdef VUART_ENABLED
+  struct ps_chardevice *temp_device;
+  irq_server_t irq_server;
+  struct irq_data* irq_data;
+
+  irq_server = _irq_server;
+
+  temp_device = vuart_init(io_ops);
+  assert(NULL != temp_device);
+  if(NULL == temp_device)
+  {
+    return -1;
+  }
+  _char_dev = *temp_device;
+
+  /* Route physical IRQs */
+  irq_data = irq_server_register_irq(irq_server, INTERRUPT_VCONSOLE, uart_irq_handler, &_char_dev);
+  if (!irq_data) {
+      return -1;
+  }
+#endif
+
+  return 0;
+}
 
 static int
 vm_install_map_ram(vm_t *vm)
@@ -67,7 +121,9 @@ install_linux_devices(vm_t* vm, const struct device **linux_pt_devices, int num_
     assert(!err);
 
     err = vm_install_map_ram(vm);
+    assert(!err);
 
+    err = install_vuart(vm);
     assert(!err);
 
     /* Install pass through devices */
