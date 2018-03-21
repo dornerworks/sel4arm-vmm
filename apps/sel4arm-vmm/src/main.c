@@ -39,6 +39,7 @@
 #include <sel4arm-vmm/devices/vgic.h>
 #include <sel4arm-vmm/devices/vram.h>
 #include <sel4arm-vmm/devices/vusb.h>
+#include <sel4arm-vmm/guest_vspace.h>
 
 extern vmconf_t vm_confs[NUM_VMS];
 
@@ -289,8 +290,7 @@ int main(void)
           return -1;
       }
 
-      // TBD
-#ifdef CONFIG_ARM_SMMU
+#ifdef CONFIG_TK1_SMMU
       int iospace_caps;
       err = simple_get_iospace_cap_count(&_simple, &iospace_caps);
       if (err) {
@@ -308,12 +308,6 @@ int main(void)
       vm[i].dtb_name = vm_confs[i].dtb_name;
       vm[i].ondemand_dev_install = 0;
       vm[i].linux_base = vm_confs[i].linux_base;
-
-      // TBD
-#ifdef CONFIG_ARM_SMMU
-      /* enable the direct device access for this VM */
-      vmm_guest_iospace_map_set(&vm[i].vm_vspace);
-#endif
 
       /* Load system images */
       printf("Loading Linux: \'%s\' dtb: \'%s\'\n", vm_confs[i].linux_name, vm[i].dtb_name);
