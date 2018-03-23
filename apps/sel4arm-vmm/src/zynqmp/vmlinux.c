@@ -1,12 +1,17 @@
 /*
  * Copyright 2014, NICTA
+ * Copyright 2018, DornerWorks
  *
  * This software may be distributed and modified according to the terms of
  * the BSD 2-Clause license. Note that NO WARRANTY is provided.
  * See "LICENSE_BSD2.txt" for details.
  *
- * @TAG(NICTA_BSD)
+ * @TAG(NICTA_DORNERWORKS_BSD)
  */
+
+#include <autoconf.h>
+
+#ifdef CONFIG_PLAT_ZYNQMP
 
 #include "vmlinux.h"
 
@@ -16,99 +21,49 @@
 
 #include <sel4arm-vmm/vm.h>
 #include <sel4arm-vmm/images.h>
-#include <sel4arm-vmm/exynos/devices.h>
-
+#include <sel4arm-vmm/plat/devices.h>
+#include <sel4arm-vmm/devices/vgic.h>
+#include <sel4arm-vmm/devices/vram.h>
+#include <sel4arm-vmm/devices/vusb.h>
+#include <sel4utils/irq_server.h>
 #include <cpio/cpio.h>
 
-#define LINUX_RAM_BASE    0x40000000
-#define LINUX_RAM_SIZE    0x40000000
 #define ATAGS_ADDR        (LINUX_RAM_BASE + 0x100)
-#define DTB_ADDR          (LINUX_RAM_BASE + 0x0F000000)
-
-#define MACH_TYPE_EXYNOS5410 4151
+#define DTB_ADDR          (LINUX_RAM_BASE + 0x0C000000)
 #define MACH_TYPE_SPECIAL    ~0
 #define MACH_TYPE            MACH_TYPE_SPECIAL
+
 
 extern char _cpio_archive[];
 
 extern vka_t _vka;
 extern vspace_t _vspace;
+extern irq_server_t _irq_server;
+extern seL4_CPtr _fault_endpoint;
 
 
 static const struct device *linux_pt_devices[] = {
-    &dev_ps_pwm_timer,
-    &dev_i2c1,
-    &dev_i2c2,
-    &dev_i2c4,
-    &dev_i2chdmi,
-    &dev_usb2_ohci,
-    &dev_usb2_ehci,
-    &dev_usb2_ctrl,
-    &dev_ps_msh0,
-    &dev_ps_msh2,
-    &dev_uart0,
-    &dev_uart1,
-    //&dev_uart2, /* Console */
-    &dev_uart3,
-    &dev_ps_tx_mixer,
-    &dev_ps_hdmi0,
-    &dev_ps_hdmi1,
-    &dev_ps_hdmi2,
-    &dev_ps_hdmi3,
-    &dev_ps_hdmi4,
-    &dev_ps_hdmi5,
-    &dev_ps_hdmi6,
-    &dev_ps_pdma0,
-    &dev_ps_pdma1,
-    &dev_ps_mdma0,
-    &dev_ps_mdma1,
-#if 1
-    &dev_gpio_left,
-    &dev_gpio_right,
-#endif
+    &dev_vconsole,
 };
+
+static int linux_pt_irqs[] = {
+    INTERRUPT_CORE_VIRT_TIMER,
+    INTERRUPT_VCONSOLE,
+};
+
+static struct irq_data* linux_irq_data[MAX_IRQ + 1] = { 0 };
 
 struct pwr_token {
     const char* linux_bin;
     const char* device_tree;
 } pwr_token;
 
-static void* install_linux_kernel(vm_t* vm, const char* kernel_name);
-static uint32_t install_linux_dtb(vm_t* vm, const char* dtb_name);
-
 static int
-vm_shutdown_cb(vm_t* vm, void* token)
+vm_install_map_ram(vm_t *vm)
 {
-    printf("Received shutdown from linux\n");
-    return -1;
-}
-
-static int
-vm_reboot_cb(vm_t* vm, void* token)
-{
-    struct pwr_token* pwr_token = (struct pwr_token*)token;
-    uint32_t dtb_addr;
-    void* entry;
-    int err;
-    printf("Received reboot from linux\n");
-    entry = install_linux_kernel(vm, pwr_token->linux_bin);
-    dtb_addr = install_linux_dtb(vm, pwr_token->device_tree);
-    if(entry == NULL || dtb_addr == 0){
-        printf("Failed to reload linux\n");
-        return -1;
-    }
-    err = vm_set_bootargs(vm, entry, MACH_TYPE, dtb_addr);
-    if(err){
-        printf("Failed to set boot args\n");
-        return -1;
-    }
-    err = vm_start(vm);
-    if(err){
-        printf("Failed to restart linux\n");
-        return -1;
-    }
-    printf("VM restarted\n");
-    return 0;
+    struct device d;
+    d = dev_vram;
+    return vm_install_ram_only_device(vm, &d);
 }
 
 static int
@@ -116,45 +71,13 @@ install_linux_devices(vm_t* vm)
 {
     int err;
     int i;
-    struct gpio_device* gpio_dev;
-    struct clock_device* clock_dev;
+
     /* Install virtual devices */
     err = vm_install_vgic(vm);
     assert(!err);
-    err = vm_install_ram_range(vm, LINUX_RAM_BASE, LINUX_RAM_SIZE);
-    assert(!err);
-    err = vm_install_vcombiner(vm);
-    assert(!err);
-    err = vm_install_vmct(vm);
-    assert(!err);
-    err = vm_install_vpower(vm, &vm_shutdown_cb, &pwr_token, &vm_reboot_cb, &pwr_token);
-    assert(!err);
-    err = vm_install_vsysreg(vm);
-    assert(!err);
 
-    gpio_dev = vm_install_ac_gpio(vm, VACDEV_DEFAULT_ALLOW, VACDEV_REPORT_AND_MASK);
-    assert(gpio_dev);
-    clock_dev = vm_install_ac_clock(vm, VACDEV_DEFAULT_ALLOW, VACDEV_REPORT_AND_MASK);
-    assert(clock_dev);
+    err = vm_install_map_ram(vm);
 
-#if 0
-    vm_gpio_restrict(gpio_dev, GPIOID(GPA1, 0));
-    vm_gpio_restrict(gpio_dev, GPIOID(GPA1, 1));
-    vm_gpio_restrict(gpio_dev, GPIOID(GPA1, 2));
-    vm_gpio_restrict(gpio_dev, GPIOID(GPA1, 3));
-    vm_gpio_restrict(gpio_dev, GPIOID(GPA1, 4));
-    vm_gpio_restrict(gpio_dev, GPIOID(GPA1, 5));
-    vm_gpio_restrict(gpio_dev, GPIOID(GPA1, 6));
-    vm_gpio_restrict(gpio_dev, GPIOID(GPA1, 7));
-#endif
-
-    vm_clock_restrict(clock_dev, CLK_UART0);
-    vm_clock_restrict(clock_dev, CLK_UART1);
-    vm_clock_restrict(clock_dev, CLK_UART3);
-    vm_clock_restrict(clock_dev, CLK_I2C0);
-    vm_clock_restrict(clock_dev, CLK_SPI1);
-
-    err = vm_install_passthrough_device(vm, &dev_vconsole);
     assert(!err);
 
     /* Install pass through devices */
@@ -166,12 +89,72 @@ install_linux_devices(vm_t* vm)
     return 0;
 }
 
-static uint32_t
+static void
+do_irq_server_ack(void* token)
+{
+    struct irq_data* irq_data = (struct irq_data*)token;
+    irq_data_ack_irq(irq_data);
+}
+
+static void
+irq_handler(struct irq_data* irq_data)
+{
+    virq_handle_t virq;
+    int err = 0;
+    virq = (virq_handle_t)irq_data->token;
+    while (virq != NULL) {
+        err = vm_inject_IRQ(virq);
+        virq = (virq_handle_t)virq->next;
+    }
+    assert(!err);
+}
+
+static int
+route_irqs(vm_t* vm, irq_server_t irq_server)
+{
+    int i;
+    int *irq_array = NULL;
+    int nirqs = 0;
+
+    if (vm->npassthrough_irqs > 0) {
+        /* use the per-VM configuration */
+        irq_array = vm->passthrough_irqs;
+        nirqs = vm->npassthrough_irqs;
+    } else {
+        /* or the global configuration */
+        irq_array = linux_pt_irqs;
+        nirqs = ARRAY_SIZE(linux_pt_irqs);
+    }
+
+    for (i = 0; i < nirqs; i++) {
+        irq_t irq = irq_array[i];
+        struct irq_data* irq_data = linux_irq_data[irq];
+        virq_handle_t virq;
+        void (*handler)(struct irq_data*);
+        handler = &irq_handler;
+        if (irq_data == 0) {
+            irq_data = irq_server_register_irq(irq_server, irq, handler, NULL);
+            if (!irq_data) {
+                return -1;
+            }
+            linux_irq_data[irq] = irq_data;
+        }
+        virq = vm_virq_new(vm, irq, &do_irq_server_ack, irq_data);
+        if (virq == NULL) {
+            return -1;
+        }
+        virq->next = irq_data->token;
+        irq_data->token = (void*)virq;
+    }
+    return 0;
+}
+
+static uint64_t
 install_linux_dtb(vm_t* vm, const char* dtb_name)
 {
     void* file;
     unsigned long size;
-    uint32_t dtb_addr;
+    uint64_t dtb_addr;
 
     /* Retrieve the file data */
     file = cpio_get_file(_cpio_archive, dtb_name, &size);
@@ -192,6 +175,7 @@ install_linux_dtb(vm_t* vm, const char* dtb_name)
     } else {
         return dtb_addr;
     }
+
 }
 
 static void*
@@ -211,7 +195,7 @@ install_linux_kernel(vm_t* vm, const char* kernel_name)
     /* Determine the load address */
     switch (image_get_type(file)) {
     case IMG_BIN:
-        entry = LINUX_RAM_BASE + 0x8000;
+        entry = LINUX_RAM_BASE + 0x80000;
         break;
     case IMG_ZIMAGE:
         entry = zImage_get_load_address(file, LINUX_RAM_BASE);
@@ -234,8 +218,9 @@ int
 load_linux(vm_t* vm, const char* kernel_name, const char* dtb_name)
 {
     void* entry;
-    uint32_t dtb;
+    uint64_t dtb;
     int err;
+    if (vm->dtb_name != NULL) dtb_name = vm->dtb_name;
 
     pwr_token.linux_bin = kernel_name;
     pwr_token.device_tree = dtb_name;
@@ -244,6 +229,11 @@ load_linux(vm_t* vm, const char* kernel_name, const char* dtb_name)
     err = install_linux_devices(vm);
     if (err) {
         printf("Error: Failed to install Linux devices\n");
+        return -1;
+    }
+    /* Route IRQs */
+    err = route_irqs(vm, _irq_server);
+    if (err) {
         return -1;
     }
     /* Load kernel */
@@ -265,4 +255,4 @@ load_linux(vm_t* vm, const char* kernel_name, const char* dtb_name)
 
     return 0;
 }
-
+#endif

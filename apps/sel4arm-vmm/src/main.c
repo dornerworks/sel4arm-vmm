@@ -327,8 +327,6 @@ int main(void)
             } else {
                 printf("Unknown label (%d) for IPC badge %d\n", (int)label, (int)sender_badge);
             }
-        } else if (sender_badge == VUSB_NBADGE) {
-            //vusb_notify();
         } else {
             assert(sender_badge == VM_BADGE || sender_badge== VM_BADGE + 1);
             if (sender_badge == VM_BADGE) {

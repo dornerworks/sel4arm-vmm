@@ -11,9 +11,11 @@
 #ifndef VMLINUX_H
 #define VMLINUX_H
 
-#include <sel4arm-vmm/vm.h>
+#if defined(CONFIG_PLAT_ZYNQMP)
+#include "./zynqmp/vmlinux.h"
 
-int load_linux(vm_t* vm, const char* kernel_name, const char* dtb_name);
+#else
+#error "Unknown SoC"
+#endif
 
 #endif /* VMLINUX_H */
-

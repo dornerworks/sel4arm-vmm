@@ -11,13 +11,5 @@
 menuconfig APP_LINUX
     bool "linux"
     default y
-    select LINUX_PREBUILD
     help
-        Linux Odroid-XU
-
-config LINUX_PREBUILT
-    bool "use prebuilt"
-    depends on APP_LINUX
-    default y
-    help
-        Use a pre-built image for linux
+        Linux for Zynqmp

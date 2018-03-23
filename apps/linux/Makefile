@@ -1,5 +1,5 @@
 #
-# Copyright 2014, NICTA
+# Copyright 2018, DornerWorks
 #
 # This software may be distributed and modified according to the terms of
 # the BSD 2-Clause license. Note that NO WARRANTY is provided.
@@ -8,52 +8,34 @@
 # @TAG(NICTA_BSD)
 #
 
-# Targets
-TARGETS := linux linux-dtb
+SEL4_BINDIR := $(STAGE_DIR)/bin
+ROOT_DIR:=$(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 
-CONFIG     := odroidxu_sel4vm_defconfig
-LINUX_FILE := Image
-ifeq ($(CONFIG_PLAT_EXYNOS5250),y)
-DTB_FILE   := exynos5250-arndale-sel4vm.dtb
-else ifeq ($(CONFIG_PLAT_EXYNOS5410),y)
-DTB_FILE   := exynos5410-odroidxu-sel4vm.dtb
+ifeq ($(CONFIG_PLAT_ZYNQMP),y)
+
+export ARCH=arm64
+
+LINUX_BINARY := $(ROOT_DIR)/Image
+DEVICE_TREE_SRC := $(ROOT_DIR)/system-top.dts
+DEVICE_TREE_SRC := $(ROOT_DIR)/linux_zynqmp.dts
+
 else
 $(error Unknown platform)
 endif
 
-LINUX_DIR=$(SOURCE_DIR)/linux
+linux: $(SEL4_BINDIR)/linux-dtb $(SEL4_BINDIR)/linux
 
-
--include $(SEL4_COMMON)/common.mk
-
-export ARCH=arm
-export CROSS_COMPILE=arm-linux-gnueabi-
-unexport CFLAGS
-unexport LDFLAGS
-unexport MAKEFLAGS
-
-$(BUILD_DIR)/.config:
-	@echo "Configuring Linux..."
-	$(MAKE) -C $(LINUX_DIR) O=$(BUILD_DIR) $(CONFIG)
-
-$(BUILD_DIR)/arch/arm/boot/$(LINUX_FILE) $(BUILD_DIR)/arch/arm/boot/dts/$(DTB_FILE): $(BUILD_DIR)/.config .FORCE
-	@echo "Building Linux..."
-	$(MAKE) -C $(LINUX_DIR) O=$(BUILD_DIR) -j8
-
-$(SEL4_BINDIR)/linux: $(BUILD_DIR)/arch/arm/boot/$(LINUX_FILE)
+$(SEL4_BINDIR)/linux-dtb: $(DEVICE_TREE_SRC)
 	$(Q)mkdir -p $(dir $@)
-	$(call cp_file,$<,$@)
+	$(Q)which dtc && dtc -I dts -O dtb $(DEVICE_TREE_SRC) > $@ || \
+	(echo "ERROR: dtc potentially not installed" && false)
 
-$(SEL4_BINDIR)/linux-dtb: $(BUILD_DIR)/arch/arm/boot/dts/$(DTB_FILE)
+$(SEL4_BINDIR)/linux: $(LINUX_BINARY)
 	$(Q)mkdir -p $(dir $@)
-	$(call cp_file,$<,$@)
+	cp $(LINUX_BINARY) $@
 
+all: linux
 
-linux: $(SEL4_BINDIR)/linux
-linux-dtb: $(SEL4_BINDIR)/linux-dtb
-
-.PHONY: linux linux-dtb
+.PHONY: linux
 
 .FORCE:
-
-
