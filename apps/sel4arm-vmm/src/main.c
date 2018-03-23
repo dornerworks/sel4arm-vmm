@@ -1,11 +1,12 @@
 /*
  * Copyright 2014, NICTA
+ * Copyright 2018, DornerWorks
  *
  * This software may be distributed and modified according to the terms of
  * the BSD 2-Clause license. Note that NO WARRANTY is provided.
  * See "LICENSE_BSD2.txt" for details.
  *
- * @TAG(NICTA_BSD)
+ * @TAG(NICTA_DORNERWORKS_BSD)
  */
 
 #include <autoconf.h>
@@ -14,11 +15,8 @@
 #include <assert.h>
 #include <string.h>
 
-#include <syscall_stubs_sel4.h>
-
-#include <twinkle/allocator.h>
-#include <twinkle/bootstrap.h>
-#include <twinkle/vka.h>
+#include <allocman/bootstrap.h>
+#include <allocman/vka.h>
 #include <vka/capops.h>
 #include <vka/object.h>
 
@@ -32,6 +30,8 @@
 #include <cpio/cpio.h>
 
 #include <sel4arm-vmm/vm.h>
+#include <sel4utils/irq_server.h>
+#include <dma/dma.h>
 
 #include "vmlinux.h"
 
@@ -41,23 +41,28 @@
 #define VM_LINUX_DTB_NAME   "linux-dtb"
 #define VM_NAME             "Linux"
 
-#ifndef DEBUG_BUILD
-#define seL4_DebugHalt() do{ printf("Halting...\n"); while(1); } while(0)
-#endif
+#define IRQSERVER_PRIO      (VM_PRIO + 1)
+#define IRQ_MESSAGE_LABEL   0xCAFE
 
-MUSLC_SYSCALL_TABLE;
+#define DMA_VSTART  0x40000000
+
+/* allocator static pool */
+#define ALLOCATOR_STATIC_POOL_SIZE ((1 << seL4_PageBits) * 4196)
+static char allocator_mem_pool[ALLOCATOR_STATIC_POOL_SIZE];
+
+#define seL4_GetBootInfo() platsupport_get_bootinfo()
 
 vka_t _vka;
 simple_t _simple;
 vspace_t _vspace;
 sel4utils_alloc_data_t _alloc_data;
-struct allocator *_allocator;
+allocman_t *_allocator;
 seL4_CPtr _fault_endpoint;
+irq_server_t _irq_server;
 
 struct ps_io_ops _io_ops;
 
 extern char _cpio_archive[];
-
 
 static void
 print_cpio_info(void)
@@ -69,7 +74,7 @@ print_cpio_info(void)
 
     cpio_info(_cpio_archive, &info);
 
-    printf("CPIO: %d files found.\n", info.file_count);
+    printf("\nCPIO: %d files found.\n", info.file_count);
     assert(info.file_count > 0);
     for (i = 0; i < info.file_count; i++) {
         void * addr;
@@ -78,7 +83,7 @@ print_cpio_info(void)
         addr = cpio_get_entry(_cpio_archive, i, &name, &size);
         assert(addr);
         strncpy(buf, name, info.max_path_sz);
-        printf("%d) %-20s  0x%08x, %8ld bytes\n", i, buf, (uint32_t)addr, size);
+        printf("%d) %-20s  %p, %8ld bytes\n", i, buf, addr, size);
     }
     printf("\n");
 }
@@ -87,46 +92,92 @@ static void
 print_boot_info(void)
 {
     seL4_BootInfo* bi;
-    seL4_DeviceRegion* dr;
     int n_ut;
-    int n_dr;
     int i;
 
-    bi = seL4_GetBootInfo();
-
-    /* Untyped */
-    n_ut = bi->untyped.end - bi->untyped.start;
+    bi = platsupport_get_bootinfo();
     assert(bi);
+    n_ut = bi->untyped.end - bi->untyped.start;
     printf("\n");
     printf("-------------------------------\n");
     printf("|  Boot info untyped regions  |\n");
     printf("-------------------------------\n");
     for (i = 0; i < n_ut; i++) {
-        uint32_t start, end;
+        seL4_Word start, end;
         int bits;
-        start = bi->untypedPaddrList[i];
-        bits = bi->untypedSizeBitsList[i];
+        int is_dev;
+        start = bi->untypedList[i].paddr;
+        bits = bi->untypedList[i].sizeBits;
         end = start + (1U << bits);
-        printf("| 0x%08x->0x%08x (%2d) |\n", start, end, bits);
-    }
-    printf("-------------------------------\n\n");
-
-    /* Device caps */
-    printf("-------------------------------\n");
-    printf("|  Boot info device regions   |\n");
-    printf("-------------------------------\n");
-    n_dr = bi->numDeviceRegions;
-    dr = bi->deviceRegions;
-    for (i = 0; i < n_dr; i++) {
-        uint32_t start, end;
-        int bits;
-        start = dr[i].basePaddr;
-        bits = dr[i].frameSizeBits;;
-        end = start + ((1U << bits) * (dr[i].frames.end - dr[i].frames.start));
-        printf("| 0x%08x->0x%08x (%2d) |\n", start, end, bits);
+        is_dev = bi->untypedList[i].isDevice;
+        if (is_dev) {
+            printf("dev| 0x%016lx->0x%016lx (%2d) |\n", start, end, bits);
+        } else {
+            printf("mem| 0x%016lx->0x%016lx (%2d) |\n", start, end, bits);
+        }
     }
     printf("-------------------------------\n\n");
 }
+
+static int
+_dma_morecore(size_t min_size, int cached, struct dma_mem_descriptor* dma_desc)
+{
+    static uint32_t _vaddr = DMA_VSTART;
+    struct seL4_ARM_Page_GetAddress getaddr_ret;
+    seL4_CPtr frame;
+    seL4_CPtr pd;
+    vka_t* vka;
+    int err;
+
+    pd = simple_get_pd(&_simple);
+    vka = &_vka;
+
+    /* Create a frame */
+    frame = vka_alloc_frame_leaky(vka, 12);
+    assert(frame);
+    if (!frame) {
+        return -1;
+    }
+
+    /* Try to map the page */
+    err = seL4_ARM_Page_Map(frame, pd, _vaddr, seL4_AllRights, 0);
+    if (err) {
+        seL4_CPtr pt;
+        /* Allocate a page table */
+        pt = vka_alloc_page_table_leaky(vka);
+        if (!pt) {
+            printf("Failed to create page table\n");
+            return -1;
+        }
+        /* Map the page table */
+        err = seL4_ARM_PageTable_Map(pt, pd, _vaddr, 0);
+        if (err) {
+            printf("Failed to map page table\n");
+            return -1;
+        }
+        /* Try to map the page again */
+        err = seL4_ARM_Page_Map(frame, pd, _vaddr, seL4_AllRights, 0);
+        if (err) {
+            printf("Failed to map page\n");
+            return -1;
+        }
+    }
+
+    /* Find the physical address of the page */
+    getaddr_ret = seL4_ARM_Page_GetAddress(frame);
+    assert(!getaddr_ret.error);
+    /* Setup dma memory description */
+    dma_desc->vaddr = _vaddr;
+    dma_desc->paddr = getaddr_ret.paddr;
+    dma_desc->cached = 0;
+    dma_desc->size_bits = 12;
+    dma_desc->alloc_cookie = (void*)frame;
+    dma_desc->cookie = NULL;
+    /* Advance the virtual address marker */
+    _vaddr += BIT(12);
+    return 0;
+}
+
 
 
 static int
@@ -142,10 +193,30 @@ vmm_init(void)
     vspace = &_vspace;
     simple = &_simple;
     fault_ep_obj.cptr = 0;
-
-    _allocator = create_first_stage_allocator();
-    twinkle_init_vka(&_vka, _allocator);
     simple_default_init_bootinfo(simple, seL4_GetBootInfo());
+    _allocator = bootstrap_use_current_simple(simple, ALLOCATOR_STATIC_POOL_SIZE,
+                                              allocator_mem_pool);
+    assert(_allocator);
+    allocman_make_vka(vka, _allocator);
+
+    for (int i = 0; i < simple_get_untyped_count(simple); i++) {
+        size_t size;
+        uintptr_t paddr;
+        bool device;
+        seL4_CPtr cap = simple_get_nth_untyped(simple, i, &size, &paddr, &device);
+        cspacepath_t path;
+        vka_cspace_make_path(vka, cap, &path);
+        int utType = device ? ALLOCMAN_UT_DEV : ALLOCMAN_UT_KERNEL;
+        if (utType == ALLOCMAN_UT_DEV &&
+            paddr >= (LINUX_RAM_BASE + LINUX_RAM_OFFSET) &&
+            paddr <= (LINUX_RAM_BASE + LINUX_RAM_OFFSET + (LINUX_RAM_SIZE - 1))) {
+            utType = ALLOCMAN_UT_DEV_MEM;
+
+            err = allocman_utspace_add_uts(_allocator, 1, &path, &size, &paddr, utType);
+            assert(!err);
+        }
+    }
+
     err = sel4utils_bootstrap_vspace_with_bootinfo_leaky(vspace,
                                                          &_alloc_data,
                                                          seL4_CapInitThreadPD,
@@ -154,77 +225,41 @@ vmm_init(void)
     assert(!err);
 
     /* Initialise device support */
-    err = sel4platsupport_new_io_mapper(*simple, *vspace, *vka,
-                                        &_io_ops.io_mapper);
+    err = sel4platsupport_new_io_mapper(*vspace, *vka, &_io_ops.io_mapper);
     assert(!err);
 
     /* Setup debug port: printf() is only reliable after this */
     platsupport_serial_setup_simple(NULL, simple, vka);
 
-    /* Allocate a endpoint for listening to events */
+    /* Initialise DMA */
+    err = dma_dmaman_init(&_dma_morecore, NULL, &_io_ops.dma_manager);
+    assert(!err);
+
+    /* Allocate an endpoint for listening to events */
     err = vka_alloc_endpoint(vka, &fault_ep_obj);
     assert(!err);
     _fault_endpoint = fault_ep_obj.cptr;
+
+    /* Create an IRQ server */
+    err = irq_server_new(vspace, vka, simple_get_cnode(simple), IRQSERVER_PRIO,
+                         simple, fault_ep_obj.cptr,
+                         IRQ_MESSAGE_LABEL, 256, &_irq_server);
+    assert(!err);
 
     return 0;
 }
 
 
-static void
-map_unity_ram(vm_t* vm)
-{
-    seL4_BootInfo* bi;
-    seL4_DeviceRegion* dr;
-    int n_dr;
-    int i;
-
-    bi = seL4_GetBootInfo();
-
-    n_dr = bi->numDeviceRegions;
-    dr = bi->deviceRegions;
-    for (i = 0; i < n_dr; i++, dr++) {
-        uint32_t start, end;
-        int bits, ncaps;
-        start = dr->basePaddr;
-        bits = dr->frameSizeBits;;
-        ncaps = dr->frames.end - dr->frames.start;
-        end = start + ((1U << bits) * ncaps);
-        if (start >= 0x40000000 && end < 0xC0000000 && bits == 21) {
-            reservation_t res;
-            vspace_t* vspace;
-            void* vaddr;
-            seL4_CPtr cap;
-            vspace = &vm->vm_vspace;
-            printf("Passthrough RAM 0x%08x-0x%08x\n", start, end);
-
-            /* Create a reservation */
-            vaddr = (void*)start;
-            res = vspace_reserve_range_at(vspace, vaddr, end - start, seL4_AllRights, 1);
-            assert(res.res != NULL);
-
-            /* Map the frames */
-            for (cap = dr->frames.start; cap < dr->frames.end; cap++, vaddr += BIT(bits)) {
-                int err;
-                err = vspace_map_pages_at_vaddr(vspace, &cap, (void*)&bits, vaddr, 1, bits, res);
-                assert(!err);
-            }
-        }
-    }
-}
-
-
-int
-main(void)
+int main(void)
 {
     vm_t vm;
     int err;
 
-    SET_MUSLC_SYSCALL_TABLE;
-
     err = vmm_init();
     assert(!err);
 
-    print_boot_info();
+    (void)print_boot_info;
+
     print_cpio_info();
 
     /* Create the VM */
@@ -236,11 +271,32 @@ main(void)
         return -1;
     }
 
-    /* HACK: See if we have a "RAM device" for 1-1 mappings */
-    map_unity_ram(&vm);
+#ifdef CONFIG_ARM_SMMU
+    int iospace_caps;
+    err = simple_get_iospace_cap_count(&_simple, &iospace_caps);
+    if (err) {
+        ZF_LOGF("Failed to get iospace count");
+    }
+    for (int i = 0; i < iospace_caps; i++) {
+        seL4_CPtr iospace = simple_get_nth_iospace_cap(&_simple, i);
+        err = vmm_guest_vspace_add_iospace(&_vspace, &vm.vm_vspace, iospace);
+        if (err) {
+            ZF_LOGF("Fail to add iospace");
+        }
+    }
+#endif
+
+    vm.dtb_name = "linux-dtb";
+    vm.ondemand_dev_install = 0;
+
+#ifdef CONFIG_ARM_SMMU
+    /* enable the direct device access for this VM */
+    vmm_guest_iospace_map_set(&vm.vm_vspace);
+#endif
 
     /* Load system images */
-    printf("Loading Linux: \'%s\' dtb: \'%s\'\n", VM_LINUX_NAME, VM_LINUX_DTB_NAME);
+    printf("Loading Linux: \'%s\' dtb: \'%s\'\n", VM_LINUX_NAME, vm.dtb_name != NULL? vm.dtb_name : VM_LINUX_DTB_NAME);
+
     err = load_linux(&vm, VM_LINUX_NAME, VM_LINUX_DTB_NAME);
     if (err) {
         printf("Failed to load VM image\n");
@@ -249,7 +305,6 @@ main(void)
     }
 
     /* Power on */
-    printf("Starting VM\n\n");
     err = vm_start(&vm);
     if (err) {
         printf("Failed to start VM\n");
@@ -262,17 +317,32 @@ main(void)
         seL4_MessageInfo_t tag;
         seL4_Word sender_badge;
 
-        tag = seL4_Wait(_fault_endpoint, &sender_badge);
-        assert(sender_badge == VM_BADGE);
+        tag = seL4_Recv(_fault_endpoint, &sender_badge);
 
-        err = vm_event(&vm, tag);
-        if (err) {
-            /* Shutdown */
-            vm_stop(&vm);
-            seL4_DebugHalt();
+        if (sender_badge == 0) {
+            seL4_Word label;
+            label = seL4_MessageInfo_get_label(tag);
+            if (label == IRQ_MESSAGE_LABEL) {
+                irq_server_handle_irq_ipc(_irq_server);
+            } else {
+                printf("Unknown label (%d) for IPC badge %d\n", (int)label, (int)sender_badge);
+            }
+        } else if (sender_badge == VUSB_NBADGE) {
+            //vusb_notify();
+        } else {
+            assert(sender_badge == VM_BADGE || sender_badge== VM_BADGE + 1);
+            if (sender_badge == VM_BADGE) {
+                err = vm_event(&vm, tag);
+                if (err) {
+                /* Shutdown */
+                    vm_stop(&vm);
+                    printf("vm 0 halts\n");
+                    seL4_DebugHalt();
+                    while (1);
+                }
+            }
         }
     }
 
     return 0;
 }
-

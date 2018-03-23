@@ -11,8 +11,12 @@
 # Targets
 TARGETS := sel4arm-vmm.bin
 
+ENTRY_POINT := _sel4_start
+
 ifeq ($(ARM_HYP),)
+ifeq ($(AARCH64_HYP),)
 $(error sel4arm-vmm can only be build with hypervisor kernel)
+endif
 endif
 
 ifeq (${COMPONENTS},)
@@ -21,16 +25,15 @@ endif
 
 # Source files required to build the target
 CFILES   := $(patsubst $(SOURCE_DIR)/%,%,$(wildcard $(SOURCE_DIR)/src/*.c))
+CFILES   += $(patsubst $(SOURCE_DIR)/%,%,$(wildcard $(SOURCE_DIR)/src/$(PLAT)/*.c))
 ASMFILES := $(patsubst $(SOURCE_DIR)/%,%,$(wildcard $(SOURCE_DIR)/src/*.S))
 OFILES   := archive.o
 
 # Libraries required to build the target
-LIBS = muslc sel4 sel4muslcsys sel4vka sel4twinkle \
+LIBS = c sel4 sel4muslcsys sel4vka sel4allocman \
        platsupport sel4platsupport sel4vspace elf \
-       sel4utils sel4simple utils  sel4simple-default cpio \
-       sel4arm-vmm
-
-#CFLAGS += -Werror
+       sel4debug sel4utils sel4simple utils  sel4simple-default cpio \
+       sel4arm-vmm sel4dma
 
 include $(SEL4_COMMON)/common.mk
 
@@ -41,5 +44,3 @@ ${COMPONENTS}:
 archive.o: ${COMPONENTS}
 	$(Q)mkdir -p $(dir $@)
 	${COMMON_PATH}/files_to_obj.sh $@ _cpio_archive $^
-
-

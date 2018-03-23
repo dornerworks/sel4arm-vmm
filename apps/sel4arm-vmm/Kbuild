@@ -10,9 +10,10 @@
 
 apps-$(CONFIG_APP_SEL4ARMVMM)  += sel4arm-vmm
 
-sel4arm-vmm: common libsel4utils libutils libsel4 libmuslc libsel4muslcsys \
-             libsel4vka libsel4twinkle libsel4vspace libsel4simple libsel4simple-default \
-             libsel4platsupport libsel4platsupport libcpio libelf libsel4arm-vmm
+sel4arm-vmm: common libsel4utils libutils libsel4 libmuslc libsel4muslcsys libsel4debug \
+             libsel4vka libsel4allocman libsel4vspace libsel4simple libsel4simple-default \
+             libsel4platsupport libsel4platsupport libcpio libelf libsel4arm-vmm \
+             libsel4dma
 
 sel4arm-vmm-components-$(CONFIG_APP_LINUX) += linux linux-dtb
 sel4arm-vmm-components=$(addprefix $(STAGE_BASE)/bin/, $(sel4arm-vmm-components-y))
