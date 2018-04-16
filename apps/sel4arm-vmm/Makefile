@@ -19,6 +19,11 @@ $(error sel4arm-vmm can only be build with hypervisor kernel)
 endif
 endif
 
+ifeq ($(CONFIG_PLAT_ZYNQMP),y)
+else
+$(error Unknown platform)
+endif
+
 ifeq (${COMPONENTS},)
 $(error "No compoments setup to build against.")
 endif
@@ -28,6 +33,9 @@ CFILES   := $(patsubst $(SOURCE_DIR)/%,%,$(wildcard $(SOURCE_DIR)/src/*.c))
 CFILES   += $(patsubst $(SOURCE_DIR)/%,%,$(wildcard $(SOURCE_DIR)/src/$(PLAT)/*.c))
 ASMFILES := $(patsubst $(SOURCE_DIR)/%,%,$(wildcard $(SOURCE_DIR)/src/*.S))
 OFILES   := archive.o
+
+HDRFILES := $(wildcard $(SOURCE_DIR)/src/*.h) \
+    $(wildcard ${SOURCE_DIR}/src/${PLAT}/*.h)
 
 # Libraries required to build the target
 LIBS = c sel4 sel4muslcsys sel4vka sel4allocman \

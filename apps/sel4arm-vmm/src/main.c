@@ -33,69 +33,17 @@
 #include <sel4utils/irq_server.h>
 #include <dma/dma.h>
 
-#include "vmlinux.h"
+#include <vmlinux.h>
 
 #include <sel4arm-vmm/plat/devices.h>
 #include <sel4arm-vmm/devices/vgic.h>
 #include <sel4arm-vmm/devices/vram.h>
 #include <sel4arm-vmm/devices/vusb.h>
 
-#define VM_PRIO      100
-#define VM_NAME_LEN  32
-
-#define NUM_VMS 2
-
-typedef struct vm_conf {
-  int priority;
-  seL4_Word badge;
-  char linux_name[VM_NAME_LEN];
-  char dtb_name[VM_NAME_LEN];
-  char vm_name[VM_NAME_LEN];
-  uintptr_t linux_base;
-  const struct device *linux_pt_devices[MAX_DEVICES_PER_VM];
-  int num_devices;
-  int linux_pt_irqs[MAX_PASSTHROUGH_IRQS];
-  int num_irqs;
-} vmconf_t;
-
-vmconf_t vm_confs[NUM_VMS] =
-{
-  {
-    .priority = VM_PRIO,
-    .badge = 1U,
-    .linux_name = "linux",
-    .dtb_name = "linux-1-dtb",
-    .vm_name = "Linux 1",
-    .linux_base = 0x800000000,
-    .linux_pt_devices = {
-    },
-    .num_devices = 0,
-    .linux_pt_irqs = {
-        INTERRUPT_CORE_VIRT_TIMER,
-    },
-    .num_irqs = 1
-  },
-  {
-    .priority = VM_PRIO,
-    .badge = 2U,
-    .linux_name = "linux",
-    .dtb_name = "linux-2-dtb",
-    .vm_name = "Linux 2",
-    .linux_base = 0x810000000,
-    .linux_pt_devices = {
-    },
-    .num_devices = 0,
-    .linux_pt_irqs = {
-        INTERRUPT_CORE_VIRT_TIMER,
-    },
-    .num_irqs = 1
-  }
-};
+extern vmconf_t vm_confs[NUM_VMS];
 
 #define IRQSERVER_PRIO      (VM_PRIO + 1)
 #define IRQ_MESSAGE_LABEL   0xCAFE
-
-#define DMA_VSTART  0x40000000
 
 /* allocator static pool */
 /* Each VM takes 256MB in individual 4kB pages, so the mem pool needs to increase */
@@ -174,7 +122,7 @@ print_boot_info(void)
 static int
 _dma_morecore(size_t min_size, int cached, struct dma_mem_descriptor* dma_desc)
 {
-    static uint32_t _vaddr = DMA_VSTART;
+    static seL4_Word _vaddr = DMA_VSTART;
     struct seL4_ARM_Page_GetAddress getaddr_ret;
     seL4_CPtr frame;
     seL4_CPtr pd;
@@ -413,7 +361,9 @@ int main(void)
             err = vm_event(&vm[vm_id], tag);
             if (err) {
                 /* Shutdown */
+#ifdef VUART_ENABLED
                 vm_uninstall_vconsole(&vm[vm_id]);
+#endif
                 vm_stop(&vm[vm_id]);
                 printf("vm (%s) halts\n", vm[vm_id].name);
             }

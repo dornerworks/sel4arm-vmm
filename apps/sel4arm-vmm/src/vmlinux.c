@@ -11,9 +11,7 @@
 
 #include <autoconf.h>
 
-#ifdef CONFIG_PLAT_ZYNQMP
-
-#include "vmlinux.h"
+#include <vmlinux.h>
 
 #include <string.h>
 
@@ -31,8 +29,6 @@
 #define DTB_OFFSET           (0x0C000000)
 #define MACH_TYPE_SPECIAL    ~0
 #define MACH_TYPE            MACH_TYPE_SPECIAL
-
-#define VUART_ENABLED
 
 extern char _cpio_archive[];
 
@@ -303,4 +299,3 @@ load_linux(vm_t* vm, const char* kernel_name, const char* dtb_name, const struct
 
     return 0;
 }
-#endif

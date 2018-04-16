@@ -170,21 +170,24 @@
 #define INTERRUPT_SMMU                    187
 #define MAX_IRQ                           200
 
-/* This is a Virtual IRQ that replaces the Serial IRQ in order to
- * mux output from mutliple VMs onto one port. Any additional Virtual
- * IRQs should be between the INTERRUPT_SMMU and MAX_IRQ.
- */
-#define VUART_IRQ                         190
-
 #define LINUX_RAM_BASE       0x800000000
 #define LINUX_RAM_END        0x880000000
 #define LINUX_RAM_SIZE       LINUX_RAM_END - LINUX_RAM_BASE
 
 #define LINUX_RAM_OFFSET  0
 
-int load_linux(vm_t* vm, const char* kernel_name, const char* dtb_name, const struct device **linux_pt_devices,
-               int num_devices, int *linux_pt_irqs, int num_irqs);
+/* The following #defines are configuration data that may need to change
+ * based on specific configurations
+ */
 
-int virtual_devices_init(struct ps_io_ops* io_ops);
+#define NUM_VMS       2
+#define DMA_VSTART    0x40000000
+#define VUART_ENABLED
+
+/* This is a Virtual IRQ that replaces the Serial IRQ in order to
+ * mux output from mutliple VMs onto one port. Any additional Virtual
+ * IRQs should be between the INTERRUPT_SMMU and MAX_IRQ.
+ */
+#define VUART_IRQ                         190
 
 #endif /* VMLINUX_H */
