@@ -11,7 +11,7 @@
 SEL4_BINDIR := $(STAGE_DIR)/bin
 ROOT_DIR:=$(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 
-ifeq ($(CONFIG_PLAT_ZYNQMP),y)
+ifneq "$(or $(CONFIG_PLAT_ZYNQMP),$(CONFIG_PLAT_IMX8))" ""
 
 export ARCH=arm64
 

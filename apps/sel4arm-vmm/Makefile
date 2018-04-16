@@ -20,6 +20,7 @@ endif
 endif
 
 ifeq ($(CONFIG_PLAT_ZYNQMP),y)
+else ifeq ($(CONFIG_PLAT_IMX8),y)
 else
 $(error Unknown platform)
 endif
