@@ -15,8 +15,8 @@ ifneq "$(or $(CONFIG_PLAT_ZYNQMP),$(CONFIG_PLAT_IMX8))" ""
 
 export ARCH=arm64
 
-LINUX_BINARY := $(ROOT_DIR)/Image
-DEVICE_TREES := $(wildcard $(ROOT_DIR)/*.dts)
+LINUX_BINARY := $(ROOT_DIR)/$(PLAT)/Image
+DEVICE_TREES := $(wildcard $(ROOT_DIR)/$(PLAT)/*.dts)
 LINUX_DTBS := $(patsubst %.dts,$(SEL4_BINDIR)/%-dtb,$(patsubst $(ROOT_DIR)/%,%,$(DEVICE_TREES)))
 
 else

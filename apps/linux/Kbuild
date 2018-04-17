@@ -11,5 +11,4 @@
 components-$(CONFIG_APP_LINUX) += linux
 
 linux: common
-linux-1-dtb: linux
-linux-2-dtb: linux
+$(PLAT)/*-dtb: linux
