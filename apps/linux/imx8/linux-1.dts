@@ -51,9 +51,9 @@
 		mmc2 = "/usdhc@5b030000";
 	};
 
-	memory@80000000 {
+	memory@970000000 {
 		device_type = "memory";
-		reg = <0x0 0x80000000 0x0 0x40000000>;
+		reg = <0x9 0x70000000 0x0 0x10000000>;
 	};
 
 	reserved-memory {
