@@ -21,12 +21,18 @@ vmconf_t vm_confs[NUM_VMS] =
     .linux_base = 0x970000000,
     .linux_pt_devices = {
           &dev_uart0,
+          /* The following devices we don't want to pass through, but need to for functionality
+           * TODO: Investigate removing
+           */
+          &dev_uart0_dma,
+          &dev_mu,
     },
-    .num_devices = 1,
+    .num_devices = 2,
     .linux_pt_irqs = {
         INTERRUPT_CORE_VIRT_TIMER,
-        INTERRUPT_DMA_UART0,
+        INTERRUPT_UART0_MOD,
+        INTERRUPT_LS_MU0,
     },
-    .num_irqs = 2
+    .num_irqs = 3
   },
 };
