@@ -27,7 +27,7 @@ vmconf_t vm_confs[NUM_VMS] =
           &dev_uart0_dma,
           &dev_mu,
     },
-    .num_devices = 2,
+    .num_devices = 3,
     .linux_pt_irqs = {
         INTERRUPT_CORE_VIRT_TIMER,
         INTERRUPT_UART0_MOD,
