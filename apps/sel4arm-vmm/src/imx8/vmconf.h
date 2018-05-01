@@ -515,4 +515,7 @@
 #define NUM_VMS     1
 #define DMA_VSTART  0x920000000
 
+#define VUART_ENABLED
+#define VUART_IRQ   510
+
 #endif /* VMLINUX_H */

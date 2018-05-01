@@ -26,6 +26,10 @@
 #include <sel4utils/irq_server.h>
 #include <cpio/cpio.h>
 
+#ifdef VUART_ENABLED
+#include <platsupport/chardev.h>
+#endif
+
 #define DTB_OFFSET           (0x0C000000)
 #define MACH_TYPE_SPECIAL    ~0
 #define MACH_TYPE            MACH_TYPE_SPECIAL
