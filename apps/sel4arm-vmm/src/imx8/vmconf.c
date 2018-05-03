@@ -32,4 +32,38 @@ vmconf_t vm_confs[NUM_VMS] =
     },
     .num_irqs = 2
   },
+  {
+    .priority = VM_PRIO,
+    .badge = 2U,
+    .linux_name = "linux",
+    .dtb_name = "linux-2-dtb",
+    .vm_name = "Linux 2",
+    .linux_base = 0x980000000,
+    .linux_pt_devices = {
+          &dev_mu,
+    },
+    .num_devices = 1,
+    .linux_pt_irqs = {
+        INTERRUPT_CORE_VIRT_TIMER,
+        INTERRUPT_LS_MU0,
+    },
+    .num_irqs = 2
+  },
+  {
+    .priority = VM_PRIO,
+    .badge = 3U,
+    .linux_name = "linux",
+    .dtb_name = "linux-3-dtb",
+    .vm_name = "Linux 3",
+    .linux_base = 0x990000000,
+    .linux_pt_devices = {
+          &dev_mu,
+    },
+    .num_devices = 1,
+    .linux_pt_irqs = {
+        INTERRUPT_CORE_VIRT_TIMER,
+        INTERRUPT_LS_MU0,
+    },
+    .num_irqs = 2
+  },
 };

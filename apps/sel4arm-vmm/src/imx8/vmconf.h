@@ -512,7 +512,7 @@
  * based on specific configurations
  */
 
-#define NUM_VMS     1
+#define NUM_VMS     3
 #define DMA_VSTART  0x920000000
 
 #define VUART_ENABLED
