@@ -25,13 +25,19 @@ vmconf_t vm_confs[NUM_VMS] =
            * TODO: Investigate removing
            */
           &dev_mu0,
+          &dev_lpcg_enet1,
+          &dev_enet1,
     },
-    .num_devices = 1,
+    .num_devices = 3,
     .linux_pt_irqs = {
         INTERRUPT_CORE_VIRT_TIMER,
         INTERRUPT_LS_MU0,
+        INTERRUPT_ENET0_FRAME1,
+        INTERRUPT_ENET0_FRAME2,
+        INTERRUPT_ENET0_FRAME0_EVENT,
+        INTERRUPT_ENET0_TIMER,
     },
-    .num_irqs = 2,
+    .num_irqs = 6,
     .map_unity = 0
   },
   {
