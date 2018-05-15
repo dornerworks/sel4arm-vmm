@@ -305,6 +305,7 @@ int main(void)
       }
 #endif
 
+      vm[i].linux_name = vm_confs[i].linux_name;
       vm[i].dtb_name = vm_confs[i].dtb_name;
       vm[i].ondemand_dev_install = 0;
       vm[i].linux_base = vm_confs[i].linux_base;

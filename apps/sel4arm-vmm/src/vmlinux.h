@@ -36,6 +36,7 @@ typedef struct vm_conf {
 int load_linux(vm_t* vm, const char* kernel_name, const char* dtb_name, const struct device **linux_pt_devices,
                int num_devices, int *linux_pt_irqs, int num_irqs);
 
+int restart_linux(vm_t* vm);
 int virtual_devices_init(struct ps_io_ops* io_ops);
 
 #endif /* VMLINUX_H */

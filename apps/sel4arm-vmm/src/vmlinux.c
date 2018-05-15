@@ -234,6 +234,7 @@ install_linux_dtb(vm_t* vm, const char* dtb_name)
         printf("Error: Failed to load device tree \'%s\'\n", dtb_name);
         return 0;
     } else {
+        vm->dtb_addr = dtb_addr;
         return dtb_addr;
     }
 
@@ -271,6 +272,7 @@ install_linux_kernel(vm_t* vm, const char* kernel_name)
         printf("Error: Failed to load \'%s\'\n", kernel_name);
         return NULL;
     } else {
+        vm->entry_point = (void*)entry;
         return (void*)entry;
     }
 }
@@ -312,6 +314,29 @@ load_linux(vm_t* vm, const char* kernel_name, const char* dtb_name, const struct
     err = vm_set_bootargs(vm, entry, MACH_TYPE, dtb);
     if (err) {
         printf("Error: Failed to set boot arguments\n");
+        return -1;
+    }
+
+    return 0;
+}
+
+int restart_linux(vm_t* vm)
+{
+    long unsigned int err;
+
+    /* Load kernel */
+    err = (long unsigned int) install_linux_kernel(vm, vm->linux_name);
+    if (!err) {
+        return -1;
+    }
+    /* Load device tree */
+    err = install_linux_dtb(vm, vm->dtb_name);
+    if (!err) {
+        return -1;
+    }
+    /* Restart VM */
+    err = vm_restart(vm);
+    if (!err) {
         return -1;
     }
 
