@@ -116,6 +116,20 @@ install_linux_devices(vm_t* vm, const struct device **linux_pt_devices, int num_
     int err;
     int i;
 
+#ifdef CONFIG_ARM_SMMU_V2
+    /*
+       Create passthrough device iospaces.  This function must be called
+       before any install functions.
+    */
+    for (i = 0; i < num_devices; i++) {
+        assert(NULL != linux_pt_devices[i]);
+        if (linux_pt_devices[i]->sid != 0) {
+           err = vm_create_passthrough_iospace(vm, linux_pt_devices[i]);
+           assert(!err);
+        }
+    }
+#endif
+
     /* Install virtual devices */
     err = vm_install_vgic(vm);
     assert(!err);
