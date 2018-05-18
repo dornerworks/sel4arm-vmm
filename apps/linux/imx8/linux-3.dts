@@ -41,8 +41,7 @@
 		linux,cma {
 			compatible = "shared-dma-pool";
 			reusable;
-			size = <0x0 0x28000000>;
-			alloc-ranges = <0x0 0x90000000 0x0 0x28000000>;
+			size = <0x0 0x4000000>;
 			linux,cma-default;
 		};
 
