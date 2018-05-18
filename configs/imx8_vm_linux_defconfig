@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Project Configuration
-# Fri Apr 13 11:26:10 2018
+# Fri May 18 15:51:35 2018
 #
 
 #
@@ -37,7 +37,12 @@ CONFIG_PLAT_IMX8=y
 # CONFIG_PLAT_HIKEY is not set
 # CONFIG_PLAT_TX1 is not set
 CONFIG_ARM_HYPERVISOR_SUPPORT=y
+CONFIG_ARM_SMMU=y
+CONFIG_ARM_SMMU_V2=y
+CONFIG_ARM_SMMU_UNKNOWN_STREAM_FAULT=y
+# CONFIG_SMMU_S1_TRANS is not set
 # CONFIG_EXPORT_PMU_USER is not set
+CONFIG_SMMU_INTERRUPT_ENABLE=y
 
 #
 # seL4 System Parameters
