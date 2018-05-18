@@ -501,8 +501,8 @@
 
 #define MAX_IRQ                                 512
 
-#define LINUX_RAM_BASE       0x900000000
-#define LINUX_RAM_END        0x980000000
+#define LINUX_RAM_BASE       0x90000000
+#define LINUX_RAM_END        0xD0000000
 #define LINUX_RAM_SIZE       LINUX_RAM_END - LINUX_RAM_BASE
 #define LINUX_RAM_OFFSET     0
 

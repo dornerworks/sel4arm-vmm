@@ -28,9 +28,9 @@
 		serial0 = "/serial@5a060000";
 	};
 
-	memory@970000000 {
+	memory@b0000000 {
 		device_type = "memory";
-		reg = <0x9 0x90000000 0x0 0x10000000>;
+		reg = <0x0 0xb0000000 0x0 0x10000000>;
 	};
 
 	reserved-memory {
