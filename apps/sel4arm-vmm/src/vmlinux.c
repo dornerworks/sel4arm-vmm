@@ -336,7 +336,7 @@ int restart_linux(vm_t* vm)
     }
     /* Restart VM */
     err = vm_restart(vm);
-    if (!err) {
+    if (err) {
         return -1;
     }
 
