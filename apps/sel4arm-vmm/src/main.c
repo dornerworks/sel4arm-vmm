@@ -250,6 +250,14 @@ vmm_init(void)
     return 0;
 }
 
+static bool
+all_vm_shutdown(void)
+{
+  static int num_vm_shutdown = 0;
+  num_vm_shutdown++;
+  return (num_vm_shutdown >= NUM_VMS);
+}
+
 int get_vm_id_by_badge(seL4_Word sender_badge)
 {
   for(int i = 0; i < NUM_VMS; i++)
@@ -354,13 +362,20 @@ int main(void)
             vm_id = get_vm_id_by_badge(sender_badge);
             assert(vm_id >= 0);
             err = vm_event(&vm[vm_id], tag);
-            if (err) {
+            if (err == RESTART_VM) {
+                restart_linux(&vm[vm_id]);
+                printf("vm (%s) restart\n", vm[vm_id].name);
+            } else if (err || err == SHUTDOWN_VM) {
                 /* Shutdown */
 #ifdef VUART_ENABLED
                 vm_uninstall_vconsole(&vm[vm_id]);
 #endif
                 vm_stop(&vm[vm_id]);
                 printf("vm (%s) halts\n", vm[vm_id].name);
+
+                if (all_vm_shutdown()) {
+                    break;
+                }
             }
         }
     }
