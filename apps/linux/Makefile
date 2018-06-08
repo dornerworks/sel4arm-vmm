@@ -5,7 +5,7 @@
 # the BSD 2-Clause license. Note that NO WARRANTY is provided.
 # See "LICENSE_BSD2.txt" for details.
 #
-# @TAG(NICTA_BSD)
+# @TAG(DATA61_DORNERWORKS_BSD)
 #
 
 SEL4_BINDIR := $(STAGE_DIR)/bin

@@ -9,8 +9,7 @@
  * the BSD 2-Clause license. Note that NO WARRANTY is provided.
  * See "LICENSE_BSD2.txt" for details.
  *
- * @TAG(DATA61_BSD)
- * @TAG(DORNERWORKS_BSD)
+ * @TAG(DATA61_DORNERWORKS_BSD)
  */
 
 #ifndef VMLINUX_ZYNQMP_H
