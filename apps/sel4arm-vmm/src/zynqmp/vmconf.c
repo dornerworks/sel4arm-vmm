@@ -45,3 +45,35 @@ vmconf_t vm_confs[NUM_VMS] =
     .num_irqs = 1
   }
 };
+
+struct vchan_device dev_vchan0 = {
+    .name = "vchan0",
+    .pread = 0x80ffff000,
+    .pwrite = 0x81fffe000,
+    .source = {
+        .vmid = 0
+    },
+    .destination = {
+        .vmid = 1
+    },
+    .port = 80
+};
+
+struct vchan_device dev_vchan1 = {
+    .name = "vchan1",
+    .pread = 0x81ffff000,
+    .pwrite = 0x80fffe000,
+    .source = {
+        .vmid = 1
+    },
+    .destination = {
+        .vmid = 0
+    },
+    .port = 50
+};
+
+struct vchan_device *vchan_config[NUM_VCHANS] =
+{
+    &dev_vchan0,
+    &dev_vchan1,
+};

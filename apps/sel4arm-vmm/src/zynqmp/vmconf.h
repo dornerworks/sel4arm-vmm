@@ -190,4 +190,6 @@
  */
 #define VUART_IRQ                         190
 
+#define NUM_VCHANS    2
+
 #endif /* VMLINUX_H */

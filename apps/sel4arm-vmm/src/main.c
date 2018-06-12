@@ -42,6 +42,7 @@
 #include <sel4arm-vmm/guest_vspace.h>
 
 extern vmconf_t vm_confs[NUM_VMS];
+extern struct vchan_device *vchan_config[NUM_VCHANS];
 
 #define IRQSERVER_PRIO      (VM_PRIO + 1)
 #define IRQ_MESSAGE_LABEL   0xCAFE
@@ -258,6 +259,99 @@ all_vm_shutdown(void)
   return (num_vm_shutdown >= NUM_VMS);
 }
 
+static int
+check_vchans(struct vchan_device **linux_vchan_devices, int num_vchans)
+{
+    for (int i = 0; i < num_vchans; i++) {
+        if (linux_vchan_devices[i]->source.vmid == linux_vchan_devices[i]->destination.vmid) {
+            printf("Warning: Vchan connects VM to itself\n");
+        }
+        /* We need to make sure the destination and source VMs exists... */
+        if ((linux_vchan_devices[i]->source.vmid >= NUM_VMS) && (linux_vchan_devices[i]->source.vmid >= 0)) {
+            printf("Error - Source VM doesn't exist\n");
+            return 1;
+        }
+        if ((linux_vchan_devices[i]->destination.vmid >= NUM_VMS) && (linux_vchan_devices[i]->destination.vmid >= 0)) {
+            printf("Error - Destination VM doesn't exist\n");
+            return 1;
+        }
+        for (int j = 0; j < num_vchans; j++) {
+            if ((linux_vchan_devices[i]->port == linux_vchan_devices[j]->port) && (i != j)) {
+                printf("Error - Vchan port %d not unique\n", linux_vchan_devices[i]->port);
+                return 1;
+            }
+        }
+    }
+
+    return 0;
+}
+
+static void
+comm_server_init(vm_t *vm, struct vchan_device **linux_vchan_devices, int num_vchans)
+{
+    int error UNUSED;
+
+    assert(check_vchans(linux_vchan_devices, num_vchans) == 0);
+
+    for(int i = 0; i < num_vchans; i++) {
+
+        struct vchan_device *curr_device = linux_vchan_devices[i];
+        int source_vmid = curr_device->source.vmid;
+        int dest_vmid = curr_device->destination.vmid;
+
+        sel4utils_process_t comm_process;
+        sel4utils_process_config_t config;
+
+        config = process_config_default_simple(&_simple, COMM_SERVER_NAME, COMM_SERVER_PRIO);
+        error = sel4utils_configure_process_custom(&comm_process, &_vka, &_vspace, config);
+
+        /* create an endpoint */
+        vka_object_t ep_object = {0};
+        error = vka_alloc_endpoint(&_vka, &ep_object);
+
+        /* make a cspacepath for the new endpoint cap */
+        cspacepath_t vm_channel_sig, vm_channel_sig_signed;
+        seL4_CPtr comm_server_cap = 0;
+
+        unsigned int badge = curr_device->port;
+
+        vka_cspace_make_path(&_vka, ep_object.cptr, &vm_channel_sig);
+
+        vka_cspace_alloc_path(&_vka, &vm_channel_sig_signed);
+        vka_cnode_mint(&vm_channel_sig_signed, &vm_channel_sig, seL4_AllRights, badge);
+
+        /* copy the endpont cap and add a badge to the new cap */
+        comm_server_cap = sel4utils_mint_cap_to_process(&comm_process, vm_channel_sig, seL4_AllRights, badge);
+
+        /* Delete the original so we don't have two copies of the same capability */
+        vka_cnode_delete(&vm_channel_sig);
+
+        /* Now we need to get the capability to the read page and copy
+         * it to the communication server. Pages should be non-cached.
+         */
+        void * comm_server_read_page = vspace_share_mem(&vm[source_vmid].vm_vspace, &comm_process.vspace,
+                                                        (void*)PAGE_ALIGN_4K(curr_device->pread),
+                                                        1, 12, seL4_CanRead, 0);
+
+        void * comm_server_write_page = vspace_share_mem(&vm[dest_vmid].vm_vspace, &comm_process.vspace,
+                                                         (void*)PAGE_ALIGN_4K(curr_device->pwrite),
+                                                         1, 12, seL4_AllRights, 0);
+
+        /* Spawn the process */
+        seL4_Word argc = 3;
+        char string_args[argc][WORD_STRING_SIZE];
+        char* argv[argc];
+        sel4utils_create_word_args(string_args, argv, argc, comm_server_cap, comm_server_read_page, comm_server_write_page);
+
+        error = sel4utils_spawn_process_v(&comm_process, &_vka, &_vspace, argc, (char**) &argv, 1);
+
+        curr_device->comm_ep = vm_channel_sig_signed.capPtr;
+
+        vm_add_vchan(&vm[source_vmid], curr_device);
+        vm_add_vchan(&vm[dest_vmid], curr_device);
+    }
+}
+
 int get_vm_id_by_badge(seL4_Word sender_badge)
 {
   for(int i = 0; i < NUM_VMS; i++)
@@ -341,6 +435,9 @@ int main(void)
       }
 
     }
+
+    /* We need to make sure both VSpaces are setup if we want to map shared pages */
+    comm_server_init(&vm[0], vchan_config, NUM_VCHANS);
 
     /* Loop forever, handling events */
     while (1) {

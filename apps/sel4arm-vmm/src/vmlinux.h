@@ -20,6 +20,10 @@
 #define VM_NAME_LEN  32
 #define VM_PRIO      100
 
+/* Configuration for the communication server */
+#define COMM_SERVER_NAME "communication-server"
+#define COMM_SERVER_PRIO VM_PRIO
+
 typedef struct vm_conf {
   int priority;
   seL4_Word badge;
