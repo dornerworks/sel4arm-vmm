@@ -13,6 +13,7 @@ endmenu
 menu "seL4 Applications"
     source "apps/linux/Kconfig"
     source "apps/sel4arm-vmm/Kconfig"
+    source "apps/communication-server/Kconfig"
 endmenu
 
 menu "seL4 Libraries"
