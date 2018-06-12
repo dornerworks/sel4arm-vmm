@@ -168,6 +168,20 @@
 		phandle = <0x42>;
 	};
 
+	vchan@80fffe000 {
+		compatible = "vchan";
+		port = <50>;
+		dir = "rx";
+		reg = <0x8 0x0fffe000 0x0 0x1000>;
+	};
+
+	vchan@80ffff000 {
+		compatible = "vchan";
+		port = <80>;
+		dir = "tx";
+		reg = <0x8 0x0ffff000 0x0 0x1000>;
+	};
+
 	clkc {
 		u-boot,dm-pre-reloc;
 		#clock-cells = <0x1>;
@@ -190,6 +204,6 @@
 
 	memory {
 		device_type = "memory";
-		reg = <0x00000008 0x00000000 0x0 0x10000000>;
+		reg = <0x00000008 0x00000000 0x0 0x0ffe0000>;
 	};
 };
