@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Project Configuration
-# Wed Mar 28 15:11:36 2018
+# Mon Jun  4 15:19:51 2018
 #
 
 #
@@ -11,6 +11,8 @@
 # CONFIG_ARCH_ARM_V7A is not set
 CONFIG_ARCH_ARM_V8A=y
 CONFIG_HAVE_FPU=y
+# CONFIG_HAVE_GIC_500 is not set
+CONFIG_HAVE_GIC_390=y
 CONFIG_KERNEL_MASTER=y
 CONFIG_START_L1=y
 CONFIG_WORD_SIZE=64
@@ -32,6 +34,7 @@ CONFIG_ARM_CORTEX_A53=y
 # CONFIG_PLAT_EXYNOS54XX is not set
 # CONFIG_PLAT_IMX6 is not set
 # CONFIG_PLAT_IMX7 is not set
+# CONFIG_PLAT_IMX8 is not set
 CONFIG_PLAT_ZYNQMP=y
 # CONFIG_PLAT_HIKEY is not set
 # CONFIG_PLAT_TX1 is not set
