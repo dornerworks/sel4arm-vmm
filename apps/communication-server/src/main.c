@@ -24,6 +24,10 @@
 
 #define VCHAN_MAX_BAD_PACKETS 10
 
+#define RETURN_NO_PCKT() return_args(0, 0)
+#define RETURN_NO_MEM()  return_args(0, 0xEE)
+#define RETURN_BAD_CHK() return_args(0, 0xFF)
+
 static int bad_packets = 0;
 
 struct vm_packet {
@@ -83,6 +87,12 @@ void remove_vm_packet(void)
     }
 }
 
+void return_args(unsigned int arg1, unsigned int arg2)
+{
+    seL4_SetMR(VCHAN_LEN_RET, arg1);
+    seL4_SetMR(VCHAN_CHECKSUM_RET, arg2);
+}
+
 int main(int argc, char **argv)
 {
     seL4_Word badge;
@@ -118,10 +128,18 @@ int main(int argc, char **argv)
             }
 
             vm_packet_t *packet = create_vm_packet();
-            assert(packet != NULL);
+            if (packet == NULL) {
+                printf("WARNING: Could not create new packet entry\n");
+                RETURN_NO_MEM();
+                goto reply;
+            }
 
             packet->data = malloc(len);
-            assert(packet->data != NULL);
+            if (packet->data == NULL) {
+                printf("WARNING: Could not create new packet data\n");
+                RETURN_NO_MEM();
+                goto reply;
+            }
 
             memcpy(packet->data, read_buffer, len);
 
@@ -134,15 +152,13 @@ int main(int argc, char **argv)
                 assert(bad_packets < VCHAN_MAX_BAD_PACKETS);
                 memset(packet->data, 0, len);
 
-                seL4_SetMR(VCHAN_LEN_RET, 0);
-                seL4_SetMR(VCHAN_CHECKSUM_RET, 0);
+                RETURN_BAD_CHK();
             }
             else {
                 packet->len = len;
                 packet->checksum = chk;
 
-                seL4_SetMR(VCHAN_LEN_RET, len);
-                seL4_SetMR(VCHAN_CHECKSUM_RET, chk);
+                return_args(len, chk);
             }
         }
         else if (event == VCHAN_WRITE) {
@@ -150,20 +166,19 @@ int main(int argc, char **argv)
 
             if(vm_packet_head != NULL) {
                 memcpy(write_buffer, (void *)vm_packet_head->data, vm_packet_head->len);
-                seL4_SetMR(VCHAN_LEN_RET, vm_packet_head->len);
-                seL4_SetMR(VCHAN_CHECKSUM_RET, vm_packet_head->checksum);
+                return_args(vm_packet_head->len, vm_packet_head->checksum);
 
                 remove_vm_packet();
             }
             else {
-                seL4_SetMR(VCHAN_LEN_RET, 0);
-                seL4_SetMR(VCHAN_CHECKSUM_RET, 0);
+                RETURN_NO_PCKT();
             }
         }
         else {
             assert("We shouldn't have gotten here\n");
         }
 
+    reply:
         seL4_Reply(tag);
     }
 
