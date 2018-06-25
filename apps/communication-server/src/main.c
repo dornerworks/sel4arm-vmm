@@ -47,6 +47,9 @@ vm_packet_t* create_vm_packet(void)
         return NULL;
     }
 
+    /* We could reuse memory, so we need to clear the node */
+    memset(new_node, 0, sizeof(vm_packet_t));
+
     /* If there is no data in the list return the allocated head */
     if (current == NULL) {
         vm_packet_head = new_node;
