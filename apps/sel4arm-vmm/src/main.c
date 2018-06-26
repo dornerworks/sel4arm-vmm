@@ -262,20 +262,27 @@ all_vm_shutdown(void)
 static int
 check_vchans(struct vchan_device **linux_vchan_devices, int num_vchans)
 {
-    for (int i = 0; i < num_vchans; i++) {
-        if (linux_vchan_devices[i]->source.vmid == linux_vchan_devices[i]->destination.vmid) {
+    assert(num_vchans < MAX_COMM_CHANNELS);
+
+    for (int i = 0; i < num_vchans; i++)
+    {
+        if (linux_vchan_devices[i]->source.vmid == linux_vchan_devices[i]->destination.vmid)
+        {
             printf("Warning: Vchan connects VM to itself\n");
         }
         /* We need to make sure the destination and source VMs exists... */
-        if ((linux_vchan_devices[i]->source.vmid >= NUM_VMS) && (linux_vchan_devices[i]->source.vmid >= 0)) {
+        if ((linux_vchan_devices[i]->source.vmid >= NUM_VMS) && (linux_vchan_devices[i]->source.vmid >= 0))
+        {
             printf("Error - Source VM doesn't exist\n");
             return 1;
         }
-        if ((linux_vchan_devices[i]->destination.vmid >= NUM_VMS) && (linux_vchan_devices[i]->destination.vmid >= 0)) {
+        if ((linux_vchan_devices[i]->destination.vmid >= NUM_VMS) && (linux_vchan_devices[i]->destination.vmid >= 0))
+        {
             printf("Error - Destination VM doesn't exist\n");
             return 1;
         }
-        for (int j = 0; j < num_vchans; j++) {
+        for (int j = 0; j < num_vchans; j++)
+        {
             if ((linux_vchan_devices[i]->port == linux_vchan_devices[j]->port) && (i != j)) {
                 printf("Error - Vchan port %d not unique\n", linux_vchan_devices[i]->port);
                 return 1;
@@ -337,18 +344,33 @@ comm_server_init(vm_t *vm, struct vchan_device **linux_vchan_devices, int num_vc
                                                          (void*)PAGE_ALIGN_4K(curr_device->pwrite),
                                                          1, 12, seL4_AllRights, 0);
 
+        assert(comm_server_read_page != NULL);
+        assert(comm_server_write_page != NULL);
+
+        /* Create a TCB object so that the comm server can create a new thread */
+        vka_object_t tcb;
+        vka_alloc_tcb(&_vka, &tcb);
+
+        seL4_CPtr tcb_slot = sel4utils_copy_cap_to_process(&comm_process, &_vka, tcb.cptr);
+        seL4_CPtr ipc_slot = sel4utils_copy_cap_to_process(&comm_process, &_vka, comm_process.thread.ipc_buffer);
+
         /* Spawn the process */
-        seL4_Word argc = 3;
+        seL4_Word argc = 6;
         char string_args[argc][WORD_STRING_SIZE];
         char* argv[argc];
-        sel4utils_create_word_args(string_args, argv, argc, comm_server_cap, comm_server_read_page, comm_server_write_page);
+        sel4utils_create_word_args(string_args, argv, argc, comm_server_cap, comm_server_read_page, comm_server_write_page,
+                                   tcb_slot, ipc_slot, comm_process.thread.ipc_buffer_addr);
 
         error = sel4utils_spawn_process_v(&comm_process, &_vka, &_vspace, argc, (char**) &argv, 1);
 
+        /* We need to set the comm server's priority because somehow its not happening and the comm server needs to
+         * spawn a new thread!
+         */
+        seL4_TCB_SetSchedParams(comm_process.thread.tcb.cptr, simple_get_tcb(&_simple), COMM_SERVER_PRIO - 1, COMM_SERVER_PRIO - 1);
+
         curr_device->comm_ep = vm_channel_sig_signed.capPtr;
 
-        vm_add_vchan(&vm[source_vmid], curr_device);
-        vm_add_vchan(&vm[dest_vmid], curr_device);
+        assert(add_vchan(curr_device) == 0);
     }
 }
 

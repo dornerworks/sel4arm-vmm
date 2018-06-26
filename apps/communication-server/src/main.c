@@ -19,14 +19,22 @@
 #define COMM_SERVER_EP          0
 #define COMM_SERVER_READ_VADDR  1
 #define COMM_SERVER_WRITE_VADDR 2
+#define COMM_SERVER_TCB         3
+#define COMM_SERVER_IPC_CAP     4
+#define COMM_SERVER_IPC_ADDR    5
+
+#define EP_THREAD_PRIO      99
 
 #define VCHAN_BUF_LEN       4096
 
 #define VCHAN_MAX_BAD_PACKETS 10
 
-#define RETURN_NO_PCKT() return_args(0, 0)
-#define RETURN_NO_MEM()  return_args(0, 0xEE)
-#define RETURN_BAD_CHK() return_args(0, 0xFF)
+#define RETURN_NO_PCKT()  return_args(0, 0)
+#define RETURN_NO_MEM()   return_args(0, 0xEE)
+#define RETURN_BAD_CHK()  return_args(0, 0xFF)
+#define RETURN_SHUTDOWN() return_args(VCHAN_LEN_SHUTDOWN, VCHAN_CHECKSUM_SHUTDOWN)
+
+static seL4_MessageInfo_t tag;
 
 static int bad_packets = 0;
 
@@ -93,17 +101,77 @@ void return_args(unsigned int arg1, unsigned int arg2)
     seL4_SetMR(VCHAN_CHECKSUM_RET, arg2);
 }
 
+void shutdown_comm_server(void)
+{
+    RETURN_SHUTDOWN();
+    seL4_Reply(tag);
+    seL4_TCB_Suspend(SEL4UTILS_TCB_SLOT);
+    while(1);
+}
+
+/* stack for the new thread */
+#define FAULT_THREAD_STACK_SIZE 256
+static uint64_t fault_thread_stack[FAULT_THREAD_STACK_SIZE] __attribute__((__aligned__(sizeof(seL4_Word) * 2)));
+
+/* function to run in the new thread */
+static void fault_thread(void)
+{
+    seL4_MessageInfo_t fault_tag;
+    seL4_UserContext regs;
+
+    while(1) {
+        fault_tag = seL4_Recv(SEL4UTILS_ENDPOINT_SLOT, NULL);
+
+        /* If we get here, the communication-server has faulted. The VMM is blocked on a Call, so we still
+         * need to reply, else the VMM will lock up. The shutdown_comm_server function just sets the
+         * return args to dead & beef, replies, and suspends the communication-server.
+         */
+        seL4_TCB_ReadRegisters(SEL4UTILS_TCB_SLOT, false, 0, sizeof(regs) / sizeof(regs.pc), &regs);
+        regs.pc = (seL4_Word) shutdown_comm_server;
+        seL4_TCB_WriteRegisters(SEL4UTILS_TCB_SLOT, false, 0, sizeof(regs) / sizeof(regs.pc), &regs);
+
+        fault_tag = seL4_MessageInfo_new(0, 0, 0, 0);
+        seL4_Reply(fault_tag);
+    }
+}
+
 int main(int argc, char **argv)
 {
     seL4_Word badge;
-    seL4_MessageInfo_t tag = seL4_MessageInfo_new(0, 0, 0, VCHAN_NUM_RET);
 
     seL4_CPtr ep = (seL4_CPtr) atol(argv[COMM_SERVER_EP]);
     void * read_buffer = (void *)atol(argv[COMM_SERVER_READ_VADDR]);
     void * write_buffer = (void *)atol(argv[COMM_SERVER_WRITE_VADDR]);
+    seL4_CPtr tcb = (seL4_CPtr) atol(argv[COMM_SERVER_TCB]);
+    seL4_CPtr ipc_cap = (seL4_CPtr) atol(argv[COMM_SERVER_IPC_CAP]);
+    seL4_Word ipc_buffer = (seL4_CPtr) atol(argv[COMM_SERVER_IPC_ADDR]);
 
     int i;
     unsigned char chk;
+
+    /* We need to setup a thread to listen on our fault endpoint */
+    int error;
+
+    error = seL4_TCB_Configure(tcb, seL4_CapNull, SEL4UTILS_CNODE_SLOT, seL4_NilData,
+                               SEL4UTILS_PD_SLOT, seL4_NilData, ipc_buffer, ipc_cap);
+    assert(!error);
+
+    uintptr_t fault_thread_stack_top = (uintptr_t)fault_thread_stack + sizeof(fault_thread_stack);
+
+    seL4_UserContext regs = {
+        .pc = (seL4_Word)fault_thread,
+        .sp = (seL4_Word)fault_thread_stack_top
+    };
+
+    error = seL4_TCB_WriteRegisters(tcb, 0, 0, 2, &regs);
+    assert(!error);
+
+    seL4_TCB_SetSchedParams(tcb, SEL4UTILS_TCB_SLOT, EP_THREAD_PRIO, EP_THREAD_PRIO);
+
+    error = seL4_TCB_Resume(tcb);
+    assert(!error);
+
+    tag = seL4_MessageInfo_new(0, 0, 0, VCHAN_NUM_RET);
 
     while(1) {
         seL4_Recv(ep, &badge);
