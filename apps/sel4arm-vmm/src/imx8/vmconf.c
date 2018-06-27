@@ -23,7 +23,7 @@ vmconf_t vm_confs[NUM_VMS] =
           /* The following devices we don't want to pass through, but need to for functionality
            * TODO: Investigate removing
            */
-          &dev_mu,
+          &dev_mu0,
     },
     .num_devices = 1,
     .linux_pt_irqs = {
@@ -40,12 +40,12 @@ vmconf_t vm_confs[NUM_VMS] =
     .vm_name = "Linux 2",
     .linux_base = 0x980000000,
     .linux_pt_devices = {
-          &dev_mu,
+        &dev_mu2,
     },
     .num_devices = 1,
     .linux_pt_irqs = {
         INTERRUPT_CORE_VIRT_TIMER,
-        INTERRUPT_LS_MU0,
+        INTERRUPT_LS_MU2,
     },
     .num_irqs = 2
   },
@@ -57,12 +57,12 @@ vmconf_t vm_confs[NUM_VMS] =
     .vm_name = "Linux 3",
     .linux_base = 0x990000000,
     .linux_pt_devices = {
-          &dev_mu,
+        &dev_mu3,
     },
     .num_devices = 1,
     .linux_pt_irqs = {
         INTERRUPT_CORE_VIRT_TIMER,
-        INTERRUPT_LS_MU0,
+        INTERRUPT_LS_MU3,
     },
     .num_irqs = 2
   },
