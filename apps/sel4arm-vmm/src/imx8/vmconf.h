@@ -518,4 +518,6 @@
 #define VUART_ENABLED
 #define VUART_IRQ   510
 
+#define NUM_VCHANS    0
+
 #endif /* VMLINUX_H */
