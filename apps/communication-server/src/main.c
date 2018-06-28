@@ -27,8 +27,6 @@
 
 #define VCHAN_BUF_LEN       4096
 
-#define VCHAN_MAX_BAD_PACKETS 10
-
 #define RETURN_NO_PCKT()  return_args(0, 0)
 #define RETURN_NO_MEM()   return_args(0, 0xEE)
 #define RETURN_BAD_CHK()  return_args(0, 0xFF)
@@ -49,7 +47,7 @@ typedef struct vm_packet vm_packet_t;
 vm_packet_t *vm_packet_head = NULL;
 
 /* Create new node at the end of the linked list */
-vm_packet_t* create_vm_packet(void)
+vm_packet_t* create_vm_packet(int len)
 {
     vm_packet_t* current = vm_packet_head;
 
@@ -62,6 +60,15 @@ vm_packet_t* create_vm_packet(void)
     /* We could reuse memory, so we need to clear the node */
     memset(new_node, 0, sizeof(vm_packet_t));
 
+    new_node->data = malloc(len);
+    if (new_node->data == NULL)
+    {
+        free(new_node);
+        return NULL;
+    }
+
+    new_node->next = NULL;
+
     /* If there is no data in the list return the allocated head */
     if (current == NULL) {
         vm_packet_head = new_node;
@@ -73,7 +80,6 @@ vm_packet_t* create_vm_packet(void)
         current = current->next;
     }
 
-    new_node->next = NULL;
     current->next = new_node;
 
     return new_node;
@@ -181,30 +187,24 @@ int main(int argc, char **argv)
         int checksum = seL4_GetMR(VCHAN_CHECKSUM);
         int len = seL4_GetMR(VCHAN_LEN);
 
+        /* The endpoint has been badged by seL4. The Port gets passed in
+         * from the VM. Therefore, if the port does not match, when the
+         * virtual channels have already passed inspection, then something
+         * is wrong with the VM and the comm server should be shut down.
+         */
+        assert(badge == port);
+
         if (event == VCHAN_READ) {
             chk = 0;
-
-            /* The endpoint has been badged by seL4. The Port gets passed in
-             * from the VM. Therefore, if the port does not match, when the
-             * virtual channels have already passed inspection, then something
-             * is wrong with the VM and the comm server should be shut down.
-             */
-            assert(badge == port);
 
             if (len > VCHAN_BUF_LEN) {
                 len = VCHAN_BUF_LEN;
             }
 
-            vm_packet_t *packet = create_vm_packet();
-            if (packet == NULL) {
-                printf("WARNING: Could not create new packet entry\n");
-                RETURN_NO_MEM();
-                goto reply;
-            }
+            vm_packet_t *packet = create_vm_packet(len);
 
-            packet->data = malloc(len);
-            if (packet->data == NULL) {
-                printf("WARNING: Could not create new packet data\n");
+            if ((packet == NULL) || (packet->data == NULL)) {
+                printf("WARNING: Could not create new packet\n");
                 RETURN_NO_MEM();
                 goto reply;
             }
@@ -216,8 +216,9 @@ int main(int argc, char **argv)
             }
 
             if (chk != checksum) {
-                printf("WARNING: Bad Checksum (%x), disregarding packet #%d\n", chk, ++bad_packets);
-                assert(bad_packets < VCHAN_MAX_BAD_PACKETS);
+                printf("WARNING: Bad Checksum (%x), expected (%x), disregarding packet #%d\n",
+                       chk, checksum, bad_packets);
+                bad_packets++;
                 memset(packet->data, 0, len);
 
                 RETURN_BAD_CHK();
@@ -230,7 +231,6 @@ int main(int argc, char **argv)
             }
         }
         else if (event == VCHAN_WRITE) {
-            assert(badge == port);
 
             if(vm_packet_head != NULL) {
                 memcpy(write_buffer, (void *)vm_packet_head->data, vm_packet_head->len);
@@ -243,7 +243,9 @@ int main(int argc, char **argv)
             }
         }
         else {
-            assert("We shouldn't have gotten here\n");
+            printf("ERROR: Communication Server signalled without READ or WRITE event. Shutting Down\n");
+            RETURN_SHUTDOWN();
+            shutdown_comm_server();
         }
 
     reply:

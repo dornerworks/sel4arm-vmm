@@ -270,17 +270,20 @@ check_vchans(struct vchan_device **linux_vchan_devices, int num_vchans)
         {
             printf("Warning: Vchan connects VM to itself\n");
         }
+
         /* We need to make sure the destination and source VMs exists... */
         if ((linux_vchan_devices[i]->source.vmid >= NUM_VMS) && (linux_vchan_devices[i]->source.vmid >= 0))
         {
             printf("Error - Source VM doesn't exist\n");
             return 1;
         }
+
         if ((linux_vchan_devices[i]->destination.vmid >= NUM_VMS) && (linux_vchan_devices[i]->destination.vmid >= 0))
         {
             printf("Error - Destination VM doesn't exist\n");
             return 1;
         }
+
         for (int j = 0; j < num_vchans; j++)
         {
             if ((linux_vchan_devices[i]->port == linux_vchan_devices[j]->port) && (i != j)) {
@@ -289,7 +292,6 @@ check_vchans(struct vchan_device **linux_vchan_devices, int num_vchans)
             }
         }
     }
-
     return 0;
 }
 
@@ -311,10 +313,12 @@ comm_server_init(vm_t *vm, struct vchan_device **linux_vchan_devices, int num_vc
 
         config = process_config_default_simple(&_simple, COMM_SERVER_NAME, COMM_SERVER_PRIO);
         error = sel4utils_configure_process_custom(&comm_process, &_vka, &_vspace, config);
+        assert(error == 0);
 
         /* create an endpoint */
         vka_object_t ep_object = {0};
         error = vka_alloc_endpoint(&_vka, &ep_object);
+        assert(error == 0);
 
         /* make a cspacepath for the new endpoint cap */
         cspacepath_t vm_channel_sig, vm_channel_sig_signed;
@@ -349,7 +353,8 @@ comm_server_init(vm_t *vm, struct vchan_device **linux_vchan_devices, int num_vc
 
         /* Create a TCB object so that the comm server can create a new thread */
         vka_object_t tcb;
-        vka_alloc_tcb(&_vka, &tcb);
+        error = vka_alloc_tcb(&_vka, &tcb);
+        assert(error == 0);
 
         seL4_CPtr tcb_slot = sel4utils_copy_cap_to_process(&comm_process, &_vka, tcb.cptr);
         seL4_CPtr ipc_slot = sel4utils_copy_cap_to_process(&comm_process, &_vka, comm_process.thread.ipc_buffer);
@@ -362,6 +367,7 @@ comm_server_init(vm_t *vm, struct vchan_device **linux_vchan_devices, int num_vc
                                    tcb_slot, ipc_slot, comm_process.thread.ipc_buffer_addr);
 
         error = sel4utils_spawn_process_v(&comm_process, &_vka, &_vspace, argc, (char**) &argv, 1);
+        assert(error == 0);
 
         /* We need to set the comm server's priority because somehow its not happening and the comm server needs to
          * spawn a new thread!
