@@ -51,10 +51,12 @@ struct vchan_device dev_vchan0 = {
     .pread = 0x80ffff000,
     .pwrite = 0x81fffe000,
     .source = {
-        .vmid = 0
+        .vmid = 0,
+        .registered = -1
     },
     .destination = {
-        .vmid = 1
+        .vmid = 1,
+        .registered = -1
     },
     .port = 80
 };
@@ -64,10 +66,12 @@ struct vchan_device dev_vchan1 = {
     .pread = 0x81ffff000,
     .pwrite = 0x80fffe000,
     .source = {
-        .vmid = 1
+        .vmid = 1,
+        .registered = -1
     },
     .destination = {
-        .vmid = 0
+        .vmid = 0,
+        .registered = -1
     },
     .port = 50
 };
