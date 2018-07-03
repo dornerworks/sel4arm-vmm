@@ -8,8 +8,20 @@
 # @TAG(NICTA_BSD)
 #
 
-menuconfig APP_LINUX
-    bool "linux"
-    default y
-    help
-        Linux for Zynqmp
+menu "Linux"
+    config APP_LINUX
+        bool "linux"
+        default y
+        help
+            Linux for Zynqmp
+
+    config APP_LINUX_IMAGE_PREFIX
+        string "Linux Image Prefix"
+        depends on APP_LINUX
+        default "Image" if PLAT_ZYNQMP
+        default "fsl-image-vm" if PLAT_IMX8
+        help
+            Prefix on the names of the Linux images in
+            apps/linux/(platform). This part of the file name
+            will be replaced with linux-
+endmenu

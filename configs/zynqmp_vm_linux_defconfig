@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Project Configuration
-# Mon Jun  4 15:19:51 2018
+# Thu Jul  5 12:00:22 2018
 #
 
 #
@@ -96,7 +96,12 @@ CONFIG_NO_BENCHMARKS=y
 #
 # seL4 Applications
 #
+
+#
+# Linux
+#
 CONFIG_APP_LINUX=y
+CONFIG_APP_LINUX_IMAGE_PREFIX="Image"
 CONFIG_APP_SEL4ARMVMM=y
 CONFIG_APP_COMM_SERVER=y
 

@@ -15,7 +15,7 @@ sel4arm-vmm: common libsel4utils libutils libsel4 libmuslc libsel4muslcsys libse
              libsel4platsupport libsel4platsupport libcpio libelf libsel4arm-vmm \
              libsel4dma
 
-sel4arm-vmm-components-$(CONFIG_APP_LINUX) += linux $(PLAT)/*-dtb
+sel4arm-vmm-components-$(CONFIG_APP_LINUX) += linux-* $(PLAT)/*-dtb
 sel4arm-vmm-components-$(CONFIG_APP_COMM_SERVER) += communication-server
 sel4arm-vmm-components=$(addprefix $(STAGE_BASE)/bin/, $(sel4arm-vmm-components-y))
 

@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Project Configuration
-# Fri May 18 15:51:35 2018
+# Thu Jul  5 11:57:36 2018
 #
 
 #
@@ -94,7 +94,12 @@ CONFIG_NO_BENCHMARKS=y
 #
 # seL4 Applications
 #
+
+#
+# Linux
+#
 CONFIG_APP_LINUX=y
+CONFIG_APP_LINUX_IMAGE_PREFIX="fsl-image-vm"
 CONFIG_APP_SEL4ARMVMM=y
 
 #

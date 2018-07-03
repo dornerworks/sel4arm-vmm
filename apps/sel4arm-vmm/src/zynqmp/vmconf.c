@@ -15,7 +15,7 @@ vmconf_t vm_confs[NUM_VMS] =
   {
     .priority = VM_PRIO,
     .badge = 1U,
-    .linux_name = "linux",
+    .linux_name = "linux-1",
     .dtb_name = "linux-1-dtb",
     .vm_name = "Linux 1",
     .linux_base = 0x800000000,
@@ -34,7 +34,7 @@ vmconf_t vm_confs[NUM_VMS] =
   {
     .priority = VM_PRIO,
     .badge = 2U,
-    .linux_name = "linux",
+    .linux_name = "linux-1",
     .dtb_name = "linux-2-dtb",
     .vm_name = "Linux 2",
     .linux_base = 0x810000000,
