@@ -1,6 +1,5 @@
 /dts-v1/;
 
-/memreserve/	0x0000000080000000 0x0000000008000000;
 / {
 	compatible = "fsl,imx8qm-arm2", "fsl,imx8qm";
 	interrupt-parent = <0x1>;
@@ -17,11 +16,18 @@
 			compatible = "arm,cortex-a53";
 			reg = <0x0 0x0>;
 			enable-method = "psci";
-			next-level-cache = <0x2>;
 			cpu-idle-states = <0x3>;
-			operating-points = <0x124f80 0x118c30>;
+			operating-points = <0x124f80 0x0>;
 			clocks = <0x4 0x1>;
 		};
+	};
+
+	psci {
+		compatible = "arm,psci-1.0";
+		method = "smc";
+		cpu_suspend = <0xc4000001>;
+		cpu_off = <0xc4000002>;
+		cpu_on = <0xc4000003>;
 	};
 
 	aliases {
@@ -83,8 +89,8 @@
 
 			lpuart0grp {
 				fsl,pins = <0x15 0x0 0x6000020 0x16 0x0 0x6000020 0x17 0x0 0x6000020 0x18 0x0 0x6000020>;
-				linux,phandle = <0x5d>;
-				phandle = <0x5d>;
+				linux,phandle = <0x73>;
+				phandle = <0x73>;
 			};
 		};
 	};
@@ -105,15 +111,15 @@
 			#power-domain-cells = <0x0>;
 			#address-cells = <0x1>;
 			#size-cells = <0x0>;
-			linux,phandle = <0x15>;
-			phandle = <0x15>;
+			linux,phandle = <0x17>;
+			phandle = <0x17>;
 
 			dma_lpuart0 {
 				reg = <0x39>;
 				#power-domain-cells = <0x0>;
-				power-domains = <0x15>;
-				linux,phandle = <0x5c>;
-				phandle = <0x5c>;
+				power-domains = <0x17>;
+				linux,phandle = <0x72>;
+				phandle = <0x72>;
 			};
 		};
 	};
@@ -122,21 +128,16 @@
 		compatible = "fsl,imx8qm-lpuart";
 		reg = <0x0 0x5a060000 0x0 0x1000>;
 		interrupts = <0x0 0x1de 0x4>;
+		#interrupts = <0x0 0x159 0x4>;
 		interrupt-parent = <0x1>;
 		clocks = <0x4 0x72 0x4 0x70>;
 		clock-names = "per", "ipg";
 		assigned-clocks = <0x4 0x72>;
 		assigned-clock-rates = <0x4c4b400>;
-		power-domains = <0x5c>;
+		power-domains = <0x72>;
 		status = "okay";
 		pinctrl-names = "default";
-		pinctrl-0 = <0x5d>;
-	};
-
-	acm@59e00000 {
-		compatible = "nxp,imx8qm-acm";
-		reg = <0x0 0x59e00000 0x0 0x1d0000>;
-		status = "okay";
+		pinctrl-0 = <0x73>;
 	};
 
 	chosen {
