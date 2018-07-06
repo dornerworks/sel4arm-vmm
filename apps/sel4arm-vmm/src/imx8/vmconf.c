@@ -30,7 +30,8 @@ vmconf_t vm_confs[NUM_VMS] =
         INTERRUPT_CORE_VIRT_TIMER,
         INTERRUPT_LS_MU0,
     },
-    .num_irqs = 2
+    .num_irqs = 2,
+    .map_unity = 0
   },
   {
     .priority = VM_PRIO,
@@ -47,7 +48,8 @@ vmconf_t vm_confs[NUM_VMS] =
         INTERRUPT_CORE_VIRT_TIMER,
         INTERRUPT_LS_MU2,
     },
-    .num_irqs = 2
+    .num_irqs = 2,
+    .map_unity = 0
   },
   {
     .priority = VM_PRIO,
@@ -64,6 +66,7 @@ vmconf_t vm_confs[NUM_VMS] =
         INTERRUPT_CORE_VIRT_TIMER,
         INTERRUPT_LS_MU3,
     },
-    .num_irqs = 2
+    .num_irqs = 2,
+    .map_unity = 0
   },
 };

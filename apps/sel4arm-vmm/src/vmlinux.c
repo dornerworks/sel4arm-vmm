@@ -110,6 +110,37 @@ vm_install_map_ram(vm_t *vm)
     return vm_install_ram_only_device(vm, &d);
 }
 
+static void
+map_unity_ram(vm_t* vm)
+{
+    /* Dimensions of physical memory that we'll use. Note that we do not map the entirety of RAM.
+     */
+    const uintptr_t paddr_start = vm->linux_base;
+    const uintptr_t paddr_end = paddr_start + RAM_SIZE;
+
+    int err;
+
+    uintptr_t start;
+    reservation_t res;
+    unsigned int bits = seL4_PageBits;
+    res = vspace_reserve_range_at(&vm->vm_vspace, (void*)paddr_start, paddr_end - paddr_start, seL4_AllRights, 1);
+    assert(res.res);
+    for (start = paddr_start; start < paddr_end; start += BIT(bits)) {
+        cspacepath_t frame;
+        err = vka_cspace_alloc_path(vm->vka, &frame);
+        assert(!err);
+        seL4_Word cookie;
+        err = vka_utspace_alloc_at(vm->vka, &frame, kobject_get_type(KOBJECT_FRAME, bits), bits, start, &cookie);
+        if (err) {
+            printf("Failed to map ram page 0x%lx\n", (long unsigned int)start);
+            vka_cspace_free(vm->vka, frame.capPtr);
+            break;
+        }
+        err = vspace_map_pages_at_vaddr(&vm->vm_vspace, &frame.capPtr, (uintptr_t *)&bits, (void*)start, 1, bits, res);
+        assert(!err);
+    }
+}
+
 static int
 install_linux_devices(vm_t* vm, const struct device **linux_pt_devices, int num_devices)
 {
@@ -134,8 +165,13 @@ install_linux_devices(vm_t* vm, const struct device **linux_pt_devices, int num_
     err = vm_install_vgic(vm);
     assert(!err);
 
-    err = vm_install_map_ram(vm);
-    assert(!err);
+    if (vm->map_unity) {
+        map_unity_ram(vm);
+    }
+    else {
+        err = vm_install_map_ram(vm);
+        assert(!err);
+    }
 
     err = install_vuart(vm);
     assert(!err);

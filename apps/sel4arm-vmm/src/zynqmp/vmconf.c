@@ -27,7 +27,8 @@ vmconf_t vm_confs[NUM_VMS] =
         INTERRUPT_CORE_VIRT_TIMER,
         INTERRUPT_GEM3,
     },
-    .num_irqs = 2
+    .num_irqs = 2,
+    .map_unity = 0
   },
   {
     .priority = VM_PRIO,
@@ -42,7 +43,8 @@ vmconf_t vm_confs[NUM_VMS] =
     .linux_pt_irqs = {
         INTERRUPT_CORE_VIRT_TIMER,
     },
-    .num_irqs = 1
+    .num_irqs = 1,
+    .map_unity = 0
   }
 };
 

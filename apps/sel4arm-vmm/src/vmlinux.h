@@ -35,6 +35,7 @@ typedef struct vm_conf {
   int num_devices;
   int linux_pt_irqs[MAX_PASSTHROUGH_IRQS];
   int num_irqs;
+  int map_unity;
 } vmconf_t;
 
 int load_linux(vm_t* vm, const char* kernel_name, const char* dtb_name, const struct device **linux_pt_devices,
