@@ -46,11 +46,9 @@ typedef struct vm_packet vm_packet_t;
 
 vm_packet_t *vm_packet_head = NULL;
 
-/* Create new node at the end of the linked list */
-vm_packet_t* create_vm_packet(int len)
+/* Allocate new node */
+vm_packet_t* alloc_vm_packet(int len)
 {
-    vm_packet_t* current = vm_packet_head;
-
     vm_packet_t* new_node = (vm_packet_t*)malloc(sizeof(vm_packet_t));
     if (new_node == NULL)
     {
@@ -67,22 +65,48 @@ vm_packet_t* create_vm_packet(int len)
         return NULL;
     }
 
+    return new_node;
+}
+
+/* Free packet and allocated data. Warning: Use on packets in the linked
+ * list will lose reference to all following packets unless appropriate
+ * previsions are made. */
+void free_vm_packet(vm_packet_t* packet)
+{
+    if(packet != NULL) {
+        packet->next = NULL;
+        if (packet->data) {
+            free(packet->data);
+        }
+        free(packet);
+    }
+}
+
+/* Link new node at the end of the linked list */
+void link_vm_packet(vm_packet_t* new_node)
+{
+    if (new_node == NULL || new_node->data == NULL) {
+        free_vm_packet(new_node);
+        return;
+    }
+
+    vm_packet_t* current = vm_packet_head;
+
     new_node->next = NULL;
 
     /* If there is no data in the list return the allocated head */
     if (current == NULL) {
         vm_packet_head = new_node;
-        return vm_packet_head;
     }
+    else
+    {
+        /* Else go to the end of the list and append new data */
+        while (current->next != NULL) {
+            current = current->next;
+        }
 
-    /* Else go to the end of the list and append new data */
-    while (current->next != NULL) {
-        current = current->next;
+        current->next = new_node;
     }
-
-    current->next = new_node;
-
-    return new_node;
 }
 
 /* Remove head of Linked List and free used data
@@ -93,12 +117,9 @@ void remove_vm_packet(void)
 
     if(temp != NULL) {
         vm_packet_head = vm_packet_head->next;
-        temp->next = NULL;
-        if (temp->data) {
-            free(temp->data);
-        }
-        free(temp);
     }
+
+    free_vm_packet(temp);
 }
 
 void return_args(unsigned int arg1, unsigned int arg2)
@@ -201,11 +222,12 @@ int main(int argc, char **argv)
                 len = VCHAN_BUF_LEN;
             }
 
-            vm_packet_t *packet = create_vm_packet(len);
+            vm_packet_t *packet = alloc_vm_packet(len);
 
             if ((packet == NULL) || (packet->data == NULL)) {
                 printf("WARNING: Could not create new packet\n");
                 RETURN_NO_MEM();
+                free_vm_packet(packet);
                 goto reply;
             }
 
@@ -222,10 +244,13 @@ int main(int argc, char **argv)
                 memset(packet->data, 0, len);
 
                 RETURN_BAD_CHK();
+                free_vm_packet(packet);
             }
             else {
                 packet->len = len;
                 packet->checksum = chk;
+
+                link_vm_packet(packet);
 
                 return_args(len, chk);
             }
