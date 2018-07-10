@@ -19,6 +19,7 @@ vmconf_t vm_confs[NUM_VMS] =
     .dtb_name = "linux-1-dtb",
     .vm_name = "Linux 1",
     .linux_base = 0x800000000,
+    .linux_size = 0x10000000,
     .linux_pt_devices = {
         &dev_gem3,
     },
@@ -37,6 +38,7 @@ vmconf_t vm_confs[NUM_VMS] =
     .dtb_name = "linux-2-dtb",
     .vm_name = "Linux 2",
     .linux_base = 0x810000000,
+    .linux_size = 0x10000000,
     .linux_pt_devices = {
     },
     .num_devices = 0,

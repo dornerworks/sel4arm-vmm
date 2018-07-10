@@ -440,6 +440,7 @@ int main(void)
       vm[i].ondemand_dev_install = 0;
       vm[i].linux_base = vm_confs[i].linux_base;
       vm[i].map_unity = vm_confs[i].map_unity;
+      vm[i].linux_size = vm_confs[i].linux_size;
 
       /* Load system images */
       printf("Loading Linux: \'%s\' dtb: \'%s\'\n", vm_confs[i].linux_name, vm[i].dtb_name);

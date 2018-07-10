@@ -31,6 +31,7 @@ typedef struct vm_conf {
   char dtb_name[VM_NAME_LEN];
   char vm_name[VM_NAME_LEN];
   uintptr_t linux_base;
+  uintptr_t linux_size;
   const struct device *linux_pt_devices[MAX_DEVICES_PER_VM];
   int num_devices;
   int linux_pt_irqs[MAX_PASSTHROUGH_IRQS];

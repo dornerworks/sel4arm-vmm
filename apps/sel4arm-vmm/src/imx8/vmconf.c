@@ -19,6 +19,7 @@ vmconf_t vm_confs[NUM_VMS] =
     .dtb_name = "linux-1-dtb",
     .vm_name = "Linux 1",
     .linux_base = 0x970000000,
+    .linux_size = 0x10000000,
     .linux_pt_devices = {
           /* The following devices we don't want to pass through, but need to for functionality
            * TODO: Investigate removing
@@ -40,6 +41,7 @@ vmconf_t vm_confs[NUM_VMS] =
     .dtb_name = "linux-2-dtb",
     .vm_name = "Linux 2",
     .linux_base = 0x980000000,
+    .linux_size = 0x10000000,
     .linux_pt_devices = {
         &dev_mu2,
     },
@@ -58,6 +60,7 @@ vmconf_t vm_confs[NUM_VMS] =
     .dtb_name = "linux-3-dtb",
     .vm_name = "Linux 3",
     .linux_base = 0x990000000,
+    .linux_size = 0x10000000,
     .linux_pt_devices = {
         &dev_mu3,
     },

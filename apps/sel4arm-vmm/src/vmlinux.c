@@ -107,6 +107,7 @@ vm_install_map_ram(vm_t *vm)
     struct device d;
     d = dev_vram;
     d.pstart = vm->linux_base;
+    d.size = vm->linux_size;
     return vm_install_ram_only_device(vm, &d);
 }
 
@@ -116,7 +117,7 @@ map_unity_ram(vm_t* vm)
     /* Dimensions of physical memory that we'll use. Note that we do not map the entirety of RAM.
      */
     const uintptr_t paddr_start = vm->linux_base;
-    const uintptr_t paddr_end = paddr_start + RAM_SIZE;
+    const uintptr_t paddr_end = paddr_start + vm->linux_size;
 
     int err;
 
