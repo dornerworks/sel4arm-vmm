@@ -24,7 +24,7 @@
 
 	psci {
 		compatible = "arm,psci-1.0";
-		method = "smc";
+		method = "hvc";
 		cpu_suspend = <0xc4000001>;
 		cpu_off = <0xc4000002>;
 		cpu_on = <0xc4000003>;
